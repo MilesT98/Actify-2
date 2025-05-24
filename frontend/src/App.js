@@ -1063,18 +1063,22 @@ const GroupsView = ({ user, groups, onCreateGroup, onJoinGroup, onSubmitGroupCha
   );
 
   // Check for recent join notifications
-  const recentJoinNotifications = notifications.filter(n => 
-    n.type === 'group_join' && 
-    !n.read && 
-    Date.now() - new Date(n.created_at).getTime() < 10000 // Last 10 seconds
-  );
-
   useEffect(() => {
-    // Show confirmation toasts for recent joins
+    const recentJoinNotifications = notifications.filter(n => 
+      n.type === 'group_join' && 
+      !n.read && 
+      Date.now() - new Date(n.created_at).getTime() < 5000 // Last 5 seconds
+    );
+
+    // Show confirmation toasts for recent joins (only once)
     recentJoinNotifications.forEach(notification => {
-      showToast(notification.message, 'confirmation');
+      if (!notification.toastShown) {
+        showToast(notification.message, 'confirmation');
+        // Mark as shown to prevent duplicates
+        notification.toastShown = true;
+      }
     });
-  }, [recentJoinNotifications, showToast]);
+  }, [notifications, showToast]);
 
   return (
     <div className={`space-y-6 ${isMobile ? 'pb-20' : ''}`}>
