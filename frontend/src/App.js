@@ -632,7 +632,7 @@ const MobileCameraCapture = ({ onCapture, onClose }) => {
   );
 };
 
-// Desktop Camera Component (similar implementation)
+// Desktop Camera Component - IMPROVED COMPATIBILITY
 const DesktopCameraCapture = ({ onCapture, onClose }) => {
   const frontVideoRef = useRef(null);
   const backVideoRef = useRef(null);
@@ -640,33 +640,80 @@ const DesktopCameraCapture = ({ onCapture, onClose }) => {
   const [backStream, setBackStream] = useState(null);
   const [capturedPhotos, setCapturedPhotos] = useState({ front: null, back: null });
   const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const [availableCameras, setAvailableCameras] = useState([]);
 
   useEffect(() => {
-    startCamera();
+    initializeCamera();
     return () => {
       stopAllStreams();
     };
   }, []);
 
+  const initializeCamera = async () => {
+    try {
+      setIsLoading(true);
+      setError(null);
+
+      // Check if mediaDevices is supported
+      if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+        throw new Error('Camera not supported on this device');
+      }
+
+      // Get available cameras
+      const devices = await navigator.mediaDevices.enumerateDevices();
+      const videoDevices = devices.filter(device => device.kind === 'videoinput');
+      setAvailableCameras(videoDevices);
+      console.log('🖥️ Available cameras:', videoDevices.length);
+
+      if (videoDevices.length === 0) {
+        throw new Error('No cameras found on this device');
+      }
+
+      await startCamera();
+      
+    } catch (error) {
+      console.error('❌ Desktop camera initialization failed:', error);
+      setError(error.message);
+      setIsLoading(false);
+    }
+  };
+
   const startCamera = async () => {
     try {
       setIsLoading(true);
-      const frontStreamObj = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: 'user' }
-      });
-      const backStreamObj = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: 'environment' }
-      });
+      
+      if (availableCameras.length >= 2) {
+        // Try to get both front and back cameras
+        const frontStreamObj = await navigator.mediaDevices.getUserMedia({
+          video: { facingMode: 'user', width: { ideal: 640 }, height: { ideal: 480 } }
+        });
+        const backStreamObj = await navigator.mediaDevices.getUserMedia({
+          video: { facingMode: 'environment', width: { ideal: 640 }, height: { ideal: 480 } }
+        });
 
-      setFrontStream(frontStreamObj);
-      setBackStream(backStreamObj);
+        setFrontStream(frontStreamObj);
+        setBackStream(backStreamObj);
 
-      if (frontVideoRef.current) frontVideoRef.current.srcObject = frontStreamObj;
-      if (backVideoRef.current) backVideoRef.current.srcObject = backStreamObj;
+        if (frontVideoRef.current) frontVideoRef.current.srcObject = frontStreamObj;
+        if (backVideoRef.current) backVideoRef.current.srcObject = backStreamObj;
+      } else {
+        // Single camera fallback - show same stream in both views
+        const singleStreamObj = await navigator.mediaDevices.getUserMedia({
+          video: { width: { ideal: 640 }, height: { ideal: 480 } }
+        });
+
+        setFrontStream(singleStreamObj);
+        setBackStream(singleStreamObj.clone());
+
+        if (frontVideoRef.current) frontVideoRef.current.srcObject = singleStreamObj;
+        if (backVideoRef.current) backVideoRef.current.srcObject = singleStreamObj.clone();
+      }
 
       setIsLoading(false);
     } catch (error) {
-      console.error('Error accessing camera:', error);
+      console.error('❌ Desktop camera start failed:', error);
+      setError(`Camera access failed: ${error.message}`);
       setIsLoading(false);
     }
   };
@@ -678,13 +725,24 @@ const DesktopCameraCapture = ({ onCapture, onClose }) => {
 
   const capturePhoto = (camera) => {
     const video = camera === 'front' ? frontVideoRef.current : backVideoRef.current;
-    const canvas = document.createElement('canvas');
-    canvas.width = video.videoWidth;
-    canvas.height = video.videoHeight;
-    const ctx = canvas.getContext('2d');
-    ctx.drawImage(video, 0, 0);
-    const dataURL = canvas.toDataURL('image/jpeg', 0.8);
-    setCapturedPhotos(prev => ({ ...prev, [camera]: dataURL }));
+    
+    if (!video || video.readyState !== 4) {
+      alert('Camera not ready. Please wait a moment and try again.');
+      return;
+    }
+
+    try {
+      const canvas = document.createElement('canvas');
+      canvas.width = video.videoWidth || 640;
+      canvas.height = video.videoHeight || 480;
+      const ctx = canvas.getContext('2d');
+      ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+      const dataURL = canvas.toDataURL('image/jpeg', 0.8);
+      setCapturedPhotos(prev => ({ ...prev, [camera]: dataURL }));
+    } catch (error) {
+      console.error('❌ Photo capture failed:', error);
+      alert('Failed to capture photo. Please try again.');
+    }
   };
 
   const handleSubmit = () => {
@@ -697,18 +755,85 @@ const DesktopCameraCapture = ({ onCapture, onClose }) => {
     }
   };
 
+  const handleUsePlaceholder = () => {
+    // Provide placeholder images for testing
+    const placeholderPhotos = {
+      front: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=400&h=300&fit=crop',
+      back: 'https://images.unsplash.com/photo-1441986300917-64674bd600d8?w=400&h=300&fit=crop'
+    };
+    onCapture(placeholderPhotos);
+    stopAllStreams();
+    onClose();
+  };
+
+  if (error) {
+    return (
+      <div className="fixed inset-0 bg-slate-900 z-50 flex flex-col">
+        <div className="flex justify-between items-center p-4 bg-slate-800 border-b border-slate-700">
+          <button onClick={onClose} className="text-white text-lg hover:text-red-400 transition-colors">✕</button>
+          <h2 className="text-white text-lg font-semibold">📷 Camera Error</h2>
+          <div></div>
+        </div>
+        
+        <div className="flex-1 flex items-center justify-center p-4">
+          <div className="text-center text-white max-w-md">
+            <div className="text-6xl mb-4">🖥️</div>
+            <h3 className="text-xl font-semibold mb-4">Camera Access Issue</h3>
+            <p className="text-slate-300 mb-6 leading-relaxed">
+              {error}
+            </p>
+            
+            <div className="space-y-4">
+              <button
+                onClick={initializeCamera}
+                className="w-full bg-blue-600 hover:bg-blue-700 text-white py-3 px-4 rounded-lg font-medium"
+              >
+                🔄 Try Again
+              </button>
+              
+              <button
+                onClick={handleUsePlaceholder}
+                className="w-full bg-slate-700 hover:bg-slate-600 text-white py-3 px-4 rounded-lg font-medium"
+              >
+                📸 Use Demo Photos
+              </button>
+              
+              <div className="text-sm text-slate-400 mt-4">
+                <p className="mb-2">💡 Tips:</p>
+                <ul className="text-left space-y-1">
+                  <li>• Allow camera permissions when prompted</li>
+                  <li>• Make sure no other apps are using your camera</li>
+                  <li>• Try refreshing the page</li>
+                  <li>• Use HTTPS for camera access</li>
+                </ul>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="fixed inset-0 bg-slate-900 z-50 flex flex-col">
       <div className="flex justify-between items-center p-4 bg-slate-800 border-b border-slate-700">
         <button onClick={onClose} className="text-white text-lg hover:text-red-400 transition-colors">✕</button>
         <h2 className="text-white text-lg font-semibold">📷 Take Your ACTIFY</h2>
-        <button
-          onClick={handleSubmit}
-          disabled={!capturedPhotos.front || !capturedPhotos.back}
-          className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed transition-all font-medium"
-        >
-          Share ✨
-        </button>
+        <div className="flex space-x-2">
+          <button
+            onClick={handleUsePlaceholder}
+            className="bg-slate-600 hover:bg-slate-700 text-white px-3 py-2 rounded-lg text-sm font-medium transition-all"
+          >
+            🖼️ Demo
+          </button>
+          <button
+            onClick={handleSubmit}
+            disabled={!capturedPhotos.front || !capturedPhotos.back}
+            className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed transition-all font-medium"
+          >
+            Share ✨
+          </button>
+        </div>
       </div>
 
       {isLoading && (
@@ -716,6 +841,9 @@ const DesktopCameraCapture = ({ onCapture, onClose }) => {
           <div className="text-center text-white">
             <div className="loading-spinner mb-4"></div>
             <p>Accessing cameras...</p>
+            <p className="text-sm text-slate-400 mt-2">
+              Please allow camera permissions when prompted
+            </p>
           </div>
         </div>
       )}
@@ -729,6 +857,8 @@ const DesktopCameraCapture = ({ onCapture, onClose }) => {
               playsInline
               muted
               className="w-full h-full object-cover"
+              onLoadedData={() => console.log('📹 Front video loaded')}
+              onError={(e) => console.error('❌ Front video error:', e)}
             />
             <div className="absolute inset-0 flex items-center justify-center">
               <div className="absolute top-4 left-4 text-white text-sm bg-black bg-opacity-50 px-3 py-1 rounded-full">
@@ -739,7 +869,8 @@ const DesktopCameraCapture = ({ onCapture, onClose }) => {
               )}
               <button
                 onClick={() => capturePhoto('front')}
-                className="absolute bottom-6 left-1/2 transform -translate-x-1/2 w-16 h-16 bg-white rounded-full border-4 border-gray-300 hover:scale-105 transition-transform flex items-center justify-center"
+                disabled={isLoading}
+                className="absolute bottom-6 left-1/2 transform -translate-x-1/2 w-16 h-16 bg-white rounded-full border-4 border-gray-300 hover:scale-105 transition-transform flex items-center justify-center disabled:opacity-50"
               >
                 {capturedPhotos.front ? <span className="text-green-600 text-xl">✓</span> : <span className="text-gray-600">📷</span>}
               </button>
@@ -753,17 +884,20 @@ const DesktopCameraCapture = ({ onCapture, onClose }) => {
               playsInline
               muted
               className="w-full h-full object-cover"
+              onLoadedData={() => console.log('📹 Back video loaded')}
+              onError={(e) => console.error('❌ Back video error:', e)}
             />
             <div className="absolute inset-0 flex items-center justify-center">
               <div className="absolute top-4 left-4 text-white text-sm bg-black bg-opacity-50 px-3 py-1 rounded-full">
-                🌍 World
+                🌍 World {availableCameras.length <= 1 && '(Same Camera)'}
               </div>
               {capturedPhotos.back && (
                 <img src={capturedPhotos.back} alt="Back capture" className="absolute inset-0 w-full h-full object-cover" />
               )}
               <button
                 onClick={() => capturePhoto('back')}
-                className="absolute bottom-6 left-1/2 transform -translate-x-1/2 w-16 h-16 bg-white rounded-full border-4 border-gray-300 hover:scale-105 transition-transform flex items-center justify-center"
+                disabled={isLoading}
+                className="absolute bottom-6 left-1/2 transform -translate-x-1/2 w-16 h-16 bg-white rounded-full border-4 border-gray-300 hover:scale-105 transition-transform flex items-center justify-center disabled:opacity-50"
               >
                 {capturedPhotos.back ? <span className="text-green-600 text-xl">✓</span> : <span className="text-gray-600">📷</span>}
               </button>
@@ -771,6 +905,14 @@ const DesktopCameraCapture = ({ onCapture, onClose }) => {
           </div>
         </div>
       </div>
+      
+      {availableCameras.length <= 1 && (
+        <div className="bg-blue-900 border-t border-blue-700 p-2 text-center">
+          <p className="text-blue-200 text-sm">
+            ℹ️ Single camera detected - showing same view for both sides
+          </p>
+        </div>
+      )}
     </div>
   );
 };
