@@ -31,6 +31,35 @@ const formatTimeAgo = (timestamp) => {
   return time.toLocaleDateString();
 };
 
+// Week management utilities
+const getWeekStart = (date = new Date()) => {
+  const d = new Date(date);
+  const day = d.getDay();
+  const diff = d.getDate() - day + (day === 0 ? -6 : 1); // Monday start
+  const monday = new Date(d.setDate(diff));
+  monday.setHours(0, 0, 0, 0);
+  return monday;
+};
+
+const getWeekEnd = (date = new Date()) => {
+  const weekStart = getWeekStart(date);
+  const weekEnd = new Date(weekStart);
+  weekEnd.setDate(weekEnd.getDate() + 6);
+  weekEnd.setHours(23, 59, 59, 999);
+  return weekEnd;
+};
+
+const getWeekKey = (date = new Date()) => {
+  const weekStart = getWeekStart(date);
+  return `${weekStart.getFullYear()}-W${Math.ceil((weekStart.getDate() - weekStart.getDay() + 1) / 7)}`;
+};
+
+const isCurrentWeek = (timestamp) => {
+  const submissionWeek = getWeekKey(new Date(timestamp));
+  const currentWeek = getWeekKey();
+  return submissionWeek === currentWeek;
+};
+
 // Generate avatar color based on name
 const getAvatarColor = (name) => {
   const colors = [
@@ -52,14 +81,26 @@ const GLOBAL_ACTIVITIES = [
   "Capture a moment of relaxation 🧘"
 ];
 
+const DEFAULT_USERS = [
+  { id: 'demo-user-1', name: 'Alex Chen', email: 'alex@example.com' },
+  { id: 'demo-user-2', name: 'Sarah Johnson', email: 'sarah@example.com' },
+  { id: 'demo-user-3', name: 'Mike Rodriguez', email: 'mike@example.com' },
+  { id: 'demo-user-4', name: 'Emma Wilson', email: 'emma@example.com' }
+];
+
 const DEFAULT_GROUPS = [
   {
     id: 'fitness-crew',
     name: 'Fitness Crew',
     description: 'Daily fitness challenges for health enthusiasts',
-    members: ['demo-user'],
-    customActivity: 'Post your workout selfie! 💪',
-    createdBy: 'demo-user',
+    members: ['demo-user-1', 'demo-user-2'],
+    currentChallenge: 'Post your workout selfie! 💪',
+    nextWeekChallenges: [
+      { id: 'ch1', challenge: 'Try a new exercise routine 🏃', submittedBy: 'demo-user-1', votes: ['demo-user-2'] },
+      { id: 'ch2', challenge: 'Healthy meal prep Sunday 🥗', submittedBy: 'demo-user-2', votes: ['demo-user-1'] }
+    ],
+    challengeSubmissionDeadline: new Date(Date.now() + 3 * 24 * 60 * 60 * 1000).toISOString(), // 3 days from now
+    createdBy: 'demo-user-1',
     memberCount: 247,
     isPublic: true
   },
@@ -67,9 +108,14 @@ const DEFAULT_GROUPS = [
     id: 'book-club',
     name: 'Book Club',
     description: 'Reading enthusiasts sharing daily progress',
-    members: ['demo-user'],
-    customActivity: 'Share what you\'re reading today 📖',
-    createdBy: 'demo-user',
+    members: ['demo-user-1', 'demo-user-3'],
+    currentChallenge: 'Share what you\'re reading today 📖',
+    nextWeekChallenges: [
+      { id: 'ch3', challenge: 'Show your book collection 📚', submittedBy: 'demo-user-3', votes: ['demo-user-1'] },
+      { id: 'ch4', challenge: 'Read in a new location 🌳', submittedBy: 'demo-user-1', votes: [] }
+    ],
+    challengeSubmissionDeadline: new Date(Date.now() + 2 * 24 * 60 * 60 * 1000).toISOString(),
+    createdBy: 'demo-user-1',
     memberCount: 156,
     isPublic: true
   },
@@ -77,13 +123,79 @@ const DEFAULT_GROUPS = [
     id: 'mindful-moments',
     name: 'Mindful Moments',
     description: 'Daily mindfulness and meditation practice',
-    members: [],
-    customActivity: 'Share your moment of peace today 🧘‍♀️',
-    createdBy: 'system',
+    members: ['demo-user-4'],
+    currentChallenge: 'Share your moment of peace today 🧘‍♀️',
+    nextWeekChallenges: [],
+    challengeSubmissionDeadline: new Date(Date.now() + 4 * 24 * 60 * 60 * 1000).toISOString(),
+    createdBy: 'demo-user-4',
     memberCount: 89,
     isPublic: true
   }
 ];
+
+// Generate some demo submissions for shared feed
+const generateDemoSubmissions = () => {
+  const submissions = [];
+  const activities = [
+    'Post your workout selfie! 💪',
+    'Share what you\'re reading today 📖',
+    'Take a photo of yourself exercising 💪',
+    'Show your healthy meal of the day 🥗'
+  ];
+  
+  DEFAULT_USERS.forEach((user, userIndex) => {
+    // Current week submissions
+    for (let i = 0; i < 2; i++) {
+      submissions.push({
+        id: `demo-${user.id}-${i}`,
+        userId: user.id,
+        userName: user.name,
+        type: i === 0 ? 'global' : 'group',
+        groupId: i === 1 ? DEFAULT_GROUPS[userIndex % DEFAULT_GROUPS.length].id : null,
+        activity: activities[userIndex % activities.length],
+        photos: {
+          front: `https://images.unsplash.com/photo-${1500000000 + userIndex * 1000 + i}?w=400&h=300&fit=crop`,
+          back: `https://images.unsplash.com/photo-${1500000001 + userIndex * 1000 + i}?w=400&h=300&fit=crop`
+        },
+        timestamp: new Date(Date.now() - (userIndex * 3600000) - (i * 1800000)).toISOString(),
+        votes: Array.from({length: Math.floor(Math.random() * 5)}, (_, vIndex) => ({
+          userId: `voter-${vIndex}`,
+          rating: Math.floor(Math.random() * 5) + 1
+        })),
+        reactions: Array.from({length: Math.floor(Math.random() * 3)}, (_, rIndex) => ({
+          userId: `reactor-${rIndex}`,
+          emoji: ['❤️', '🔥', '👏'][rIndex % 3]
+        }))
+      });
+    }
+    
+    // Previous week submissions for all-time leaderboard
+    for (let i = 0; i < 3; i++) {
+      submissions.push({
+        id: `demo-prev-${user.id}-${i}`,
+        userId: user.id,
+        userName: user.name,
+        type: 'global',
+        activity: activities[i % activities.length],
+        photos: {
+          front: `https://images.unsplash.com/photo-${1400000000 + userIndex * 1000 + i}?w=400&h=300&fit=crop`,
+          back: `https://images.unsplash.com/photo-${1400000001 + userIndex * 1000 + i}?w=400&h=300&fit=crop`
+        },
+        timestamp: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000 - (i * 3600000)).toISOString(),
+        votes: Array.from({length: Math.floor(Math.random() * 8)}, (_, vIndex) => ({
+          userId: `voter-${vIndex}`,
+          rating: Math.floor(Math.random() * 5) + 1
+        })),
+        reactions: Array.from({length: Math.floor(Math.random() * 5)}, (_, rIndex) => ({
+          userId: `reactor-${rIndex}`,
+          emoji: ['❤️', '🔥', '👏', '😮', '😂'][rIndex % 5]
+        }))
+      });
+    }
+  });
+  
+  return submissions;
+};
 
 const ACHIEVEMENTS = [
   { id: 'first-post', name: 'First Steps', description: 'Share your first activity', icon: '🌟' },
@@ -91,7 +203,9 @@ const ACHIEVEMENTS = [
   { id: 'streak-7', name: 'Week Warrior', description: '7-day streak', icon: '⚡' },
   { id: 'popular-post', name: 'Crowd Favorite', description: 'Get 10+ votes', icon: '❤️' },
   { id: 'group-creator', name: 'Community Builder', description: 'Create your first group', icon: '👥' },
-  { id: 'helpful-voter', name: 'Supportive Friend', description: 'Vote on 50+ posts', icon: '🤝' }
+  { id: 'helpful-voter', name: 'Supportive Friend', description: 'Vote on 50+ posts', icon: '🤝' },
+  { id: 'weekly-winner', name: 'Weekly Champion', description: 'Top the weekly leaderboard', icon: '👑' },
+  { id: 'challenge-creator', name: 'Innovator', description: 'Suggest a winning group challenge', icon: '💡' }
 ];
 
 // Camera Component
@@ -184,7 +298,6 @@ const CameraCapture = ({ onCapture, onClose }) => {
 
       <div className="flex-1 relative">
         <div className="grid grid-cols-1 md:grid-cols-2 h-full">
-          {/* Front Camera */}
           <div className="relative bg-black">
             <video
               ref={frontVideoRef}
@@ -209,7 +322,6 @@ const CameraCapture = ({ onCapture, onClose }) => {
             </div>
           </div>
 
-          {/* Back Camera */}
           <div className="relative bg-black">
             <video
               ref={backVideoRef}
@@ -258,20 +370,20 @@ const IntroScreen = ({ onContinue }) => {
     },
     {
       icon: "🌍",
-      title: "Global Challenges",
-      description: "Join daily global activities that bring the community together. New challenge every day!",
-      feature: "⏰ 24-Hour Windows"
+      title: "Global & Group Challenges",
+      description: "Join daily global activities and create custom group challenges that refresh weekly!",
+      feature: "⏰ Weekly Rotations"
     },
     {
       icon: "👥",
-      title: "Create Groups",
-      description: "Build your own communities with custom challenges. Fitness crews, book clubs, and more!",
-      feature: "🎨 Custom Activities"
+      title: "Community Competition",
+      description: "Submit challenge ideas, vote on next week's activities, and climb both weekly and all-time leaderboards!",
+      feature: "🏆 Dual Rankings"
     },
     {
-      icon: "🏆",
-      title: "Compete & Connect",
-      description: "Vote on submissions, build streaks, and climb the leaderboards. Authentic social competition!",
+      icon: "🎨",
+      title: "Create & Connect",
+      description: "Build your own communities, suggest challenges, and compete authentically with friends!",
       feature: "⭐ Community Voting"
     }
   ];
@@ -294,7 +406,6 @@ const IntroScreen = ({ onContinue }) => {
     <div className="fixed inset-0 bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900 z-50 flex items-center justify-center p-4">
       <div className="bg-slate-800 rounded-2xl p-8 max-w-md w-full border border-slate-700 shadow-2xl">
         <div className="text-center space-y-6">
-          {/* Progress indicators */}
           <div className="flex justify-center space-x-2 mb-6">
             {slides.map((_, index) => (
               <div
@@ -306,7 +417,6 @@ const IntroScreen = ({ onContinue }) => {
             ))}
           </div>
 
-          {/* Slide content */}
           <div className="space-y-4">
             <div className="text-4xl">{slides[currentSlide].icon}</div>
             <h2 className="text-2xl font-bold text-white">{slides[currentSlide].title}</h2>
@@ -327,7 +437,6 @@ const IntroScreen = ({ onContinue }) => {
             )}
           </div>
 
-          {/* Navigation */}
           <div className="flex justify-between items-center pt-4">
             <button
               onClick={prevSlide}
@@ -597,14 +706,12 @@ const ActivityFeed = ({ user, submissions, groups, onSubmitActivity, onVote, onR
   const [showCamera, setShowCamera] = useState(false);
   const [selectedActivity, setSelectedActivity] = useState(null);
   const [timeLeft, setTimeLeft] = useState(null);
-  const [filter, setFilter] = useState('all'); // all, global, groups
+  const [filter, setFilter] = useState('all');
 
-  // Get today's global activity
   const today = new Date().toDateString();
   const todayIndex = new Date().getDay();
   const globalActivity = GLOBAL_ACTIVITIES[todayIndex];
 
-  // Calculate time left for submission
   useEffect(() => {
     const updateTimeLeft = () => {
       const now = new Date();
@@ -646,7 +753,6 @@ const ActivityFeed = ({ user, submissions, groups, onSubmitActivity, onVote, onR
     setSelectedActivity(null);
   };
 
-  // Check submissions
   const todaySubmissions = submissions.filter(s => 
     s.userId === user.id && new Date(s.timestamp).toDateString() === today
   );
@@ -654,12 +760,11 @@ const ActivityFeed = ({ user, submissions, groups, onSubmitActivity, onVote, onR
   const hasSubmittedGlobal = todaySubmissions.some(s => s.type === 'global');
   const submittedGroupIds = todaySubmissions.filter(s => s.type === 'group').map(s => s.groupId);
 
-  // Filter submissions
   const filteredSubmissions = submissions.filter(submission => {
     if (filter === 'global') return submission.type === 'global';
     if (filter === 'groups') return submission.type === 'group';
     return true;
-  });
+  }).sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
 
   return (
     <div className="space-y-6">
@@ -670,7 +775,6 @@ const ActivityFeed = ({ user, submissions, groups, onSubmitActivity, onVote, onR
         />
       )}
 
-      {/* Time Left Indicator */}
       <div className="bg-gradient-to-r from-blue-900 to-purple-900 border border-blue-700 rounded-xl p-4 text-center">
         <div className="flex items-center justify-center space-x-2">
           <span className="text-2xl">⏰</span>
@@ -678,7 +782,6 @@ const ActivityFeed = ({ user, submissions, groups, onSubmitActivity, onVote, onR
         </div>
       </div>
 
-      {/* Global Activity */}
       <div className="bg-slate-800 rounded-xl p-6 border border-slate-700 hover:border-blue-500 transition-colors">
         <div className="flex justify-between items-start mb-4">
           <div className="flex-1">
@@ -706,7 +809,6 @@ const ActivityFeed = ({ user, submissions, groups, onSubmitActivity, onVote, onR
         )}
       </div>
 
-      {/* Group Activities */}
       {groups.filter(g => g.members.includes(user.id)).map(group => (
         <div key={group.id} className="bg-slate-800 rounded-xl p-6 border border-slate-700 hover:border-green-500 transition-colors">
           <div className="flex justify-between items-start mb-4">
@@ -715,12 +817,12 @@ const ActivityFeed = ({ user, submissions, groups, onSubmitActivity, onVote, onR
                 <h3 className="text-lg font-semibold text-white">👥 {group.name}</h3>
                 <div className="bg-green-600 text-white text-xs px-2 py-1 rounded-full">{group.memberCount} members</div>
               </div>
-              <p className="text-slate-300">{group.customActivity}</p>
-              <p className="text-slate-500 text-sm mt-1">{group.description}</p>
+              <p className="text-slate-300">{group.currentChallenge}</p>
+              <p className="text-slate-500 text-sm mt-1">This week's challenge • Refreshes Monday</p>
             </div>
             {!submittedGroupIds.includes(group.id) && (
               <button
-                onClick={() => handleSubmitActivity('group', group.customActivity, group.id)}
+                onClick={() => handleSubmitActivity('group', group.currentChallenge, group.id)}
                 className="bg-green-600 hover:bg-green-700 text-white px-6 py-3 rounded-lg font-medium transition-all hover:scale-105 shadow-lg"
               >
                 📸 Submit
@@ -730,13 +832,12 @@ const ActivityFeed = ({ user, submissions, groups, onSubmitActivity, onVote, onR
           {submittedGroupIds.includes(group.id) && (
             <div className="bg-green-900 border border-green-700 rounded-lg p-3 flex items-center">
               <span className="text-green-400 mr-2 text-xl">✓</span>
-              <span className="text-green-300">Submitted to {group.name} today!</span>
+              <span className="text-green-300">Submitted to {group.name} this week!</span>
             </div>
           )}
         </div>
       ))}
 
-      {/* Filter Tabs */}
       <div className="flex space-x-2 bg-slate-800 p-2 rounded-lg border border-slate-700">
         <button
           onClick={() => setFilter('all')}
@@ -744,7 +845,7 @@ const ActivityFeed = ({ user, submissions, groups, onSubmitActivity, onVote, onR
             filter === 'all' ? 'bg-blue-600 text-white' : 'text-slate-400 hover:text-white'
           }`}
         >
-          🌟 All Posts
+          🌟 All Posts ({filteredSubmissions.length})
         </button>
         <button
           onClick={() => setFilter('global')}
@@ -752,7 +853,7 @@ const ActivityFeed = ({ user, submissions, groups, onSubmitActivity, onVote, onR
             filter === 'global' ? 'bg-blue-600 text-white' : 'text-slate-400 hover:text-white'
           }`}
         >
-          🌍 Global
+          🌍 Global ({submissions.filter(s => s.type === 'global').length})
         </button>
         <button
           onClick={() => setFilter('groups')}
@@ -760,11 +861,10 @@ const ActivityFeed = ({ user, submissions, groups, onSubmitActivity, onVote, onR
             filter === 'groups' ? 'bg-blue-600 text-white' : 'text-slate-400 hover:text-white'
           }`}
         >
-          👥 Groups
+          👥 Groups ({submissions.filter(s => s.type === 'group').length})
         </button>
       </div>
 
-      {/* Recent Submissions */}
       <div className="space-y-4">
         <h3 className="text-xl font-semibold text-white flex items-center space-x-2">
           <span>📸</span>
@@ -823,7 +923,12 @@ const SubmissionCard = ({ submission, currentUser, onVote, onReact }) => {
           <div>
             <h4 className="text-white font-semibold">{submission.userName}</h4>
             <p className="text-slate-400 text-sm">{submission.activity}</p>
-            <p className="text-slate-500 text-xs">{formatTimeAgo(submission.timestamp)}</p>
+            <div className="flex items-center space-x-2 text-xs text-slate-500">
+              <span>{formatTimeAgo(submission.timestamp)}</span>
+              {isCurrentWeek(submission.timestamp) && (
+                <span className="bg-green-800 text-green-200 px-2 py-1 rounded-full">This Week</span>
+              )}
+            </div>
           </div>
         </div>
         <div className="flex items-center space-x-2">
@@ -837,7 +942,6 @@ const SubmissionCard = ({ submission, currentUser, onVote, onReact }) => {
         </div>
       </div>
 
-      {/* Photo Display */}
       <div className="mb-4">
         <div className="flex space-x-2 mb-2">
           <button
@@ -871,7 +975,6 @@ const SubmissionCard = ({ submission, currentUser, onVote, onReact }) => {
         </div>
       </div>
 
-      {/* Actions */}
       <div className="flex items-center justify-between">
         <div className="flex items-center space-x-4">
           <QuickReactionButton
@@ -905,11 +1008,12 @@ const SubmissionCard = ({ submission, currentUser, onVote, onReact }) => {
   );
 };
 
-const GroupsView = ({ user, groups, onCreateGroup, onJoinGroup }) => {
+const GroupsView = ({ user, groups, onCreateGroup, onJoinGroup, onSubmitGroupChallenge, onVoteGroupChallenge }) => {
   const [showCreateForm, setShowCreateForm] = useState(false);
   const [newGroup, setNewGroup] = useState({ name: '', description: '', customActivity: '', isPublic: true });
   const [joinCode, setJoinCode] = useState('');
   const [searchTerm, setSearchTerm] = useState('');
+  const [challengeInputs, setChallengeInputs] = useState({});
 
   const handleCreateGroup = (e) => {
     e.preventDefault();
@@ -919,7 +1023,10 @@ const GroupsView = ({ user, groups, onCreateGroup, onJoinGroup }) => {
         id: generateId(),
         members: [user.id],
         createdBy: user.id,
-        memberCount: 1
+        memberCount: 1,
+        currentChallenge: newGroup.customActivity,
+        nextWeekChallenges: [],
+        challengeSubmissionDeadline: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString()
       });
       setNewGroup({ name: '', description: '', customActivity: '', isPublic: true });
       setShowCreateForm(false);
@@ -931,6 +1038,14 @@ const GroupsView = ({ user, groups, onCreateGroup, onJoinGroup }) => {
     if (joinCode) {
       onJoinGroup(joinCode);
       setJoinCode('');
+    }
+  };
+
+  const handleSubmitChallenge = (groupId) => {
+    const challenge = challengeInputs[groupId];
+    if (challenge && challenge.trim()) {
+      onSubmitGroupChallenge(groupId, challenge.trim());
+      setChallengeInputs(prev => ({ ...prev, [groupId]: '' }));
     }
   };
 
@@ -957,7 +1072,6 @@ const GroupsView = ({ user, groups, onCreateGroup, onJoinGroup }) => {
         </button>
       </div>
 
-      {/* Create Group Modal */}
       {showCreateForm && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
           <div className="bg-slate-800 rounded-xl p-6 w-full max-w-md border border-slate-700">
@@ -980,7 +1094,7 @@ const GroupsView = ({ user, groups, onCreateGroup, onJoinGroup }) => {
               />
               <input
                 type="text"
-                placeholder="Custom Daily Activity"
+                placeholder="First Weekly Challenge"
                 value={newGroup.customActivity}
                 onChange={(e) => setNewGroup({...newGroup, customActivity: e.target.value})}
                 className="w-full p-3 bg-slate-700 text-white rounded-lg border border-slate-600 focus:border-blue-500 focus:outline-none transition-colors"
@@ -1016,7 +1130,6 @@ const GroupsView = ({ user, groups, onCreateGroup, onJoinGroup }) => {
         </div>
       )}
 
-      {/* Join Group */}
       <div className="bg-slate-800 rounded-xl p-6 border border-slate-700">
         <h3 className="text-lg font-semibold text-white mb-4 flex items-center space-x-2">
           <span>🔗</span>
@@ -1039,51 +1152,107 @@ const GroupsView = ({ user, groups, onCreateGroup, onJoinGroup }) => {
         </form>
       </div>
 
-      {/* Your Groups */}
       <div>
         <h3 className="text-xl font-semibold text-white mb-4 flex items-center space-x-2">
           <span>🏠</span>
           <span>Your Groups ({userGroups.length})</span>
         </h3>
         <div className="grid gap-4">
-          {userGroups.map(group => (
-            <div key={group.id} className="bg-slate-800 rounded-xl p-6 border border-slate-700 hover:border-blue-500 transition-colors group-card">
-              <div className="flex justify-between items-start mb-3">
-                <div className="flex-1">
-                  <h4 className="text-lg font-semibold text-white">{group.name}</h4>
-                  <p className="text-slate-400">{group.description}</p>
+          {userGroups.map(group => {
+            const deadlineDate = new Date(group.challengeSubmissionDeadline);
+            const daysLeft = Math.ceil((deadlineDate - new Date()) / (1000 * 60 * 60 * 24));
+            const userAlreadySubmitted = group.nextWeekChallenges?.some(ch => ch.submittedBy === user.id);
+            
+            return (
+              <div key={group.id} className="bg-slate-800 rounded-xl p-6 border border-slate-700 hover:border-blue-500 transition-colors group-card">
+                <div className="flex justify-between items-start mb-4">
+                  <div className="flex-1">
+                    <h4 className="text-lg font-semibold text-white">{group.name}</h4>
+                    <p className="text-slate-400">{group.description}</p>
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <span className="bg-slate-700 text-slate-300 px-3 py-1 rounded-full text-sm">
+                      👥 {group.memberCount}
+                    </span>
+                    {group.createdBy === user.id && (
+                      <span className="bg-yellow-600 text-white px-2 py-1 rounded-full text-xs">ADMIN</span>
+                    )}
+                  </div>
                 </div>
-                <div className="flex items-center space-x-2">
-                  <span className="bg-slate-700 text-slate-300 px-3 py-1 rounded-full text-sm">
-                    👥 {group.memberCount}
-                  </span>
-                  {group.createdBy === user.id && (
-                    <span className="bg-yellow-600 text-white px-2 py-1 rounded-full text-xs">ADMIN</span>
+
+                <div className="bg-slate-700 rounded-lg p-4 mb-4">
+                  <p className="text-slate-300 text-sm mb-1">This Week's Challenge:</p>
+                  <p className="text-white font-medium">{group.currentChallenge}</p>
+                </div>
+
+                <div className="bg-blue-900 border border-blue-700 rounded-lg p-4 mb-4">
+                  <div className="flex justify-between items-center mb-3">
+                    <h5 className="text-white font-semibold">💡 Next Week's Challenge Ideas</h5>
+                    <span className="text-blue-200 text-sm">{daysLeft} days to submit</span>
+                  </div>
+                  
+                  {!userAlreadySubmitted && (
+                    <div className="flex space-x-2 mb-3">
+                      <input
+                        type="text"
+                        placeholder="Suggest a challenge for next week..."
+                        value={challengeInputs[group.id] || ''}
+                        onChange={(e) => setChallengeInputs(prev => ({ ...prev, [group.id]: e.target.value }))}
+                        className="flex-1 p-2 bg-slate-700 text-white rounded-lg border border-slate-600 focus:border-blue-500 focus:outline-none text-sm"
+                      />
+                      <button
+                        onClick={() => handleSubmitChallenge(group.id)}
+                        disabled={!challengeInputs[group.id]?.trim()}
+                        className="bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors"
+                      >
+                        Submit
+                      </button>
+                    </div>
                   )}
+
+                  <div className="space-y-2">
+                    {group.nextWeekChallenges?.map(challenge => (
+                      <div key={challenge.id} className="bg-slate-800 rounded-lg p-3 flex justify-between items-center">
+                        <div>
+                          <p className="text-white text-sm">{challenge.challenge}</p>
+                          <p className="text-slate-400 text-xs">by {challenge.submittedBy === user.id ? 'You' : challenge.submittedBy}</p>
+                        </div>
+                        <div className="flex items-center space-x-2">
+                          <span className="text-yellow-400 text-sm">👍 {challenge.votes?.length || 0}</span>
+                          {challenge.submittedBy !== user.id && !challenge.votes?.includes(user.id) && (
+                            <button
+                              onClick={() => onVoteGroupChallenge(group.id, challenge.id)}
+                              className="bg-green-600 hover:bg-green-700 text-white px-2 py-1 rounded text-xs"
+                            >
+                              Vote
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                    {(!group.nextWeekChallenges || group.nextWeekChallenges.length === 0) && (
+                      <p className="text-slate-500 text-sm text-center py-2">No challenges submitted yet. Be the first!</p>
+                    )}
+                  </div>
+                </div>
+
+                <div className="flex justify-between items-center text-sm">
+                  <span className="text-slate-500">ID: {group.id}</span>
+                  <button
+                    onClick={() => {
+                      navigator.clipboard.writeText(group.id);
+                    }}
+                    className="text-blue-400 hover:text-blue-300 transition-colors"
+                  >
+                    📋 Copy ID
+                  </button>
                 </div>
               </div>
-              <div className="bg-slate-700 rounded-lg p-3 mb-3">
-                <p className="text-slate-300 text-sm">Today's Challenge:</p>
-                <p className="text-white">{group.customActivity}</p>
-              </div>
-              <div className="flex justify-between items-center text-sm">
-                <span className="text-slate-500">ID: {group.id}</span>
-                <button
-                  onClick={() => {
-                    navigator.clipboard.writeText(group.id);
-                    // You could add a toast notification here
-                  }}
-                  className="text-blue-400 hover:text-blue-300 transition-colors"
-                >
-                  📋 Copy ID
-                </button>
-              </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       </div>
 
-      {/* Discover Groups */}
       {availableGroups.length > 0 && (
         <div>
           <div className="flex justify-between items-center mb-4">
@@ -1120,8 +1289,8 @@ const GroupsView = ({ user, groups, onCreateGroup, onJoinGroup }) => {
                   </div>
                 </div>
                 <div className="bg-slate-700 rounded-lg p-3">
-                  <p className="text-slate-300 text-sm">Daily Challenge:</p>
-                  <p className="text-white">{group.customActivity}</p>
+                  <p className="text-slate-300 text-sm">This Week's Challenge:</p>
+                  <p className="text-white">{group.currentChallenge}</p>
                 </div>
               </div>
             ))}
@@ -1133,59 +1302,49 @@ const GroupsView = ({ user, groups, onCreateGroup, onJoinGroup }) => {
 };
 
 const Leaderboard = ({ submissions, groups, user }) => {
-  // Calculate user scores
-  const userScores = {};
-  
-  submissions.forEach(submission => {
-    if (!userScores[submission.userId]) {
-      userScores[submission.userId] = {
-        userId: submission.userId,
-        userName: submission.userName,
-        totalPoints: 0,
-        submissions: 0,
-        averageRating: 0,
-        streak: 0,
-        reactions: 0
-      };
-    }
-    
-    const userScore = userScores[submission.userId];
-    userScore.submissions++;
-    userScore.reactions += submission.reactions?.length || 0;
-    
-    if (submission.votes && submission.votes.length > 0) {
-      const avgRating = submission.votes.reduce((sum, vote) => sum + vote.rating, 0) / submission.votes.length;
-      userScore.totalPoints += avgRating * 10;
-      userScore.averageRating = ((userScore.averageRating * (userScore.submissions - 1)) + avgRating) / userScore.submissions;
-    }
-  });
+  const [viewMode, setViewMode] = useState('weekly'); // weekly or allTime
 
-  // Calculate streaks
-  Object.values(userScores).forEach(userScore => {
-    const userSubmissions = submissions.filter(s => s.userId === userScore.userId)
-      .sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+  // Calculate user scores for both weekly and all-time
+  const calculateUserScores = (submissionsToAnalyze) => {
+    const userScores = {};
     
-    let streak = 0;
-    let currentDate = new Date();
-    currentDate.setHours(0, 0, 0, 0);
-    
-    for (let submission of userSubmissions) {
-      const submissionDate = new Date(submission.timestamp);
-      submissionDate.setHours(0, 0, 0, 0);
-      
-      if (submissionDate.getTime() === currentDate.getTime()) {
-        streak++;
-        currentDate.setDate(currentDate.getDate() - 1);
-      } else {
-        break;
+    submissionsToAnalyze.forEach(submission => {
+      if (!userScores[submission.userId]) {
+        userScores[submission.userId] = {
+          userId: submission.userId,
+          userName: submission.userName,
+          totalPoints: 0,
+          submissions: 0,
+          averageRating: 0,
+          streak: 0,
+          reactions: 0,
+          votes: 0
+        };
       }
-    }
-    
-    userScore.streak = streak;
-  });
+      
+      const userScore = userScores[submission.userId];
+      userScore.submissions++;
+      userScore.reactions += submission.reactions?.length || 0;
+      userScore.votes += submission.votes?.length || 0;
+      
+      if (submission.votes && submission.votes.length > 0) {
+        const avgRating = submission.votes.reduce((sum, vote) => sum + vote.rating, 0) / submission.votes.length;
+        userScore.totalPoints += avgRating * 10;
+        userScore.averageRating = ((userScore.averageRating * (userScore.submissions - 1)) + avgRating) / userScore.submissions;
+      }
+    });
 
-  const sortedUsers = Object.values(userScores)
-    .sort((a, b) => b.totalPoints - a.totalPoints);
+    return Object.values(userScores).sort((a, b) => b.totalPoints - a.totalPoints);
+  };
+
+  const weeklySubmissions = submissions.filter(s => isCurrentWeek(s.timestamp));
+  const allTimeSubmissions = submissions;
+
+  const weeklyScores = calculateUserScores(weeklySubmissions);
+  const allTimeScores = calculateUserScores(allTimeSubmissions);
+
+  const currentScores = viewMode === 'weekly' ? weeklyScores : allTimeScores;
+  const currentSubmissions = viewMode === 'weekly' ? weeklySubmissions : allTimeSubmissions;
 
   const getRankIcon = (index) => {
     if (index === 0) return '👑';
@@ -1194,22 +1353,54 @@ const Leaderboard = ({ submissions, groups, user }) => {
     return '🏅';
   };
 
+  const weekStart = getWeekStart();
+  const weekEnd = getWeekEnd();
+
   return (
     <div className="space-y-6">
-      <h2 className="text-2xl font-bold text-white flex items-center space-x-2">
-        <span>🏆</span>
-        <span>Leaderboard</span>
-      </h2>
+      <div className="flex justify-between items-center">
+        <h2 className="text-2xl font-bold text-white flex items-center space-x-2">
+          <span>🏆</span>
+          <span>Leaderboard</span>
+        </h2>
+        
+        <div className="flex space-x-2 bg-slate-800 p-2 rounded-lg border border-slate-700">
+          <button
+            onClick={() => setViewMode('weekly')}
+            className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+              viewMode === 'weekly' ? 'bg-blue-600 text-white' : 'text-slate-400 hover:text-white'
+            }`}
+          >
+            📅 This Week
+          </button>
+          <button
+            onClick={() => setViewMode('allTime')}
+            className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+              viewMode === 'allTime' ? 'bg-blue-600 text-white' : 'text-slate-400 hover:text-white'
+            }`}
+          >
+            ⏳ All Time
+          </button>
+        </div>
+      </div>
+
+      {viewMode === 'weekly' && (
+        <div className="bg-blue-900 border border-blue-700 rounded-xl p-4 text-center">
+          <h3 className="text-white font-semibold mb-2">📅 Week of {weekStart.toLocaleDateString()} - {weekEnd.toLocaleDateString()}</h3>
+          <p className="text-blue-200 text-sm">Leaderboard resets every Monday at midnight</p>
+          <p className="text-blue-300 text-xs mt-1">{currentSubmissions.length} submissions this week</p>
+        </div>
+      )}
       
       <div className="bg-slate-800 rounded-xl p-6 border border-slate-700">
         <h3 className="text-xl font-semibold text-white mb-4 flex items-center space-x-2">
           <span>🌟</span>
-          <span>Top Performers</span>
+          <span>{viewMode === 'weekly' ? 'Weekly' : 'All-Time'} Top Performers</span>
         </h3>
         <div className="space-y-3">
-          {sortedUsers.slice(0, 10).map((userScore, index) => (
+          {currentScores.slice(0, 10).map((userScore, index) => (
             <div 
-              key={userScore.userId}
+              key={`${viewMode}-${userScore.userId}`}
               className={`flex items-center justify-between p-4 rounded-lg transition-all ${
                 userScore.userId === user.id 
                   ? 'bg-blue-900 border border-blue-700 ring-2 ring-blue-500' 
@@ -1231,12 +1422,11 @@ const Leaderboard = ({ submissions, groups, user }) => {
                     {userScore.userId === user.id && (
                       <span className="bg-blue-600 text-white text-xs px-2 py-1 rounded-full">YOU</span>
                     )}
+                    {viewMode === 'weekly' && index === 0 && (
+                      <span className="bg-yellow-600 text-white text-xs px-2 py-1 rounded-full">WEEKLY CHAMPION</span>
+                    )}
                   </div>
                   <div className="flex items-center space-x-4 text-sm text-slate-400">
-                    <span className="flex items-center space-x-1">
-                      <span>🔥</span>
-                      <span>{userScore.streak}</span>
-                    </span>
                     <span className="flex items-center space-x-1">
                       <span>📸</span>
                       <span>{userScore.submissions}</span>
@@ -1249,6 +1439,10 @@ const Leaderboard = ({ submissions, groups, user }) => {
                       <span>❤️</span>
                       <span>{userScore.reactions}</span>
                     </span>
+                    <span className="flex items-center space-x-1">
+                      <span>🗳️</span>
+                      <span>{userScore.votes}</span>
+                    </span>
                   </div>
                 </div>
               </div>
@@ -1258,38 +1452,43 @@ const Leaderboard = ({ submissions, groups, user }) => {
               </div>
             </div>
           ))}
+          {currentScores.length === 0 && (
+            <div className="text-center py-12 text-slate-400">
+              <div className="text-4xl mb-4">🏆</div>
+              <p>No submissions yet {viewMode === 'weekly' ? 'this week' : 'ever'}. Be the first!</p>
+            </div>
+          )}
         </div>
       </div>
 
-      {/* User's Detailed Stats */}
-      {user && userScores[user.id] && (
+      {user && currentScores.find(s => s.userId === user.id) && (
         <div className="bg-gradient-to-r from-blue-900 to-purple-900 border border-blue-700 rounded-xl p-6">
           <h3 className="text-lg font-semibold text-white mb-4 flex items-center space-x-2">
             <span>📊</span>
-            <span>Your Performance</span>
+            <span>Your {viewMode === 'weekly' ? 'Weekly' : 'All-Time'} Performance</span>
           </h3>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
             <div className="text-center">
               <p className="text-3xl font-bold text-white">
-                #{sortedUsers.findIndex(u => u.userId === user.id) + 1}
+                #{currentScores.findIndex(u => u.userId === user.id) + 1}
               </p>
-              <p className="text-blue-200 text-sm">Global Rank</p>
+              <p className="text-blue-200 text-sm">{viewMode === 'weekly' ? 'Weekly' : 'All-Time'} Rank</p>
             </div>
             <div className="text-center">
               <p className="text-3xl font-bold text-white">
-                {Math.round(userScores[user.id].totalPoints)}
+                {Math.round(currentScores.find(u => u.userId === user.id)?.totalPoints || 0)}
               </p>
               <p className="text-blue-200 text-sm">Total Points</p>
             </div>
             <div className="text-center">
               <p className="text-3xl font-bold text-white">
-                {userScores[user.id].streak}
+                {currentScores.find(u => u.userId === user.id)?.submissions || 0}
               </p>
-              <p className="text-blue-200 text-sm">Day Streak</p>
+              <p className="text-blue-200 text-sm">Submissions</p>
             </div>
             <div className="text-center">
               <p className="text-3xl font-bold text-white">
-                {userScores[user.id].averageRating.toFixed(1)}
+                {(currentScores.find(u => u.userId === user.id)?.averageRating || 0).toFixed(1)}
               </p>
               <p className="text-blue-200 text-sm">Avg Rating</p>
             </div>
@@ -1311,7 +1510,6 @@ const AchievementsView = ({ achievements, onMarkAchievementSeen }) => {
         <span>Achievements</span>
       </h2>
 
-      {/* Earned Achievements */}
       <div>
         <h3 className="text-xl font-semibold text-white mb-4 flex items-center space-x-2">
           <span>🏆</span>
@@ -1346,7 +1544,6 @@ const AchievementsView = ({ achievements, onMarkAchievementSeen }) => {
         </div>
       </div>
 
-      {/* Locked Achievements */}
       <div>
         <h3 className="text-xl font-semibold text-white mb-4 flex items-center space-x-2">
           <span>🔒</span>
@@ -1380,7 +1577,13 @@ function App() {
   const [isLogin, setIsLogin] = useState(true);
   const [currentView, setCurrentView] = useState('feed');
   const [groups, setGroups] = useState(getStorageItem('groups', DEFAULT_GROUPS));
-  const [submissions, setSubmissions] = useState(getStorageItem('submissions', []));
+  
+  // Initialize with demo submissions for shared feed
+  const [submissions, setSubmissions] = useState(() => {
+    const stored = getStorageItem('submissions');
+    return stored && stored.length > 0 ? stored : generateDemoSubmissions();
+  });
+  
   const [achievements, setAchievements] = useState(getStorageItem('achievements', ACHIEVEMENTS.map(a => ({ ...a, earned: false, seen: false }))));
   const [showIntro, setShowIntro] = useState(false);
 
@@ -1403,9 +1606,27 @@ function App() {
 
   // Check for new achievements
   const checkAchievements = useCallback(() => {
-    const userSubmissions = submissions.filter(s => s.userId === user?.id);
-    const userVotes = submissions.reduce((acc, s) => acc + (s.votes?.filter(v => v.userId === user?.id).length || 0), 0);
-    const userGroups = groups.filter(g => g.createdBy === user?.id);
+    if (!user) return;
+    
+    const userSubmissions = submissions.filter(s => s.userId === user.id);
+    const userVotes = submissions.reduce((acc, s) => acc + (s.votes?.filter(v => v.userId === user.id).length || 0), 0);
+    const userGroups = groups.filter(g => g.createdBy === user.id);
+    const weeklySubmissions = submissions.filter(s => s.userId === user.id && isCurrentWeek(s.timestamp));
+    const userChallenges = groups.reduce((acc, g) => acc + (g.nextWeekChallenges?.filter(ch => ch.submittedBy === user.id).length || 0), 0);
+    
+    // Calculate if user is weekly winner
+    const weeklyScores = {};
+    submissions.filter(s => isCurrentWeek(s.timestamp)).forEach(submission => {
+      if (!weeklyScores[submission.userId]) {
+        weeklyScores[submission.userId] = 0;
+      }
+      if (submission.votes && submission.votes.length > 0) {
+        const avgRating = submission.votes.reduce((sum, vote) => sum + vote.rating, 0) / submission.votes.length;
+        weeklyScores[submission.userId] += avgRating * 10;
+      }
+    });
+    const sortedWeekly = Object.entries(weeklyScores).sort(([,a], [,b]) => b - a);
+    const isWeeklyWinner = sortedWeekly.length > 0 && sortedWeekly[0][0] === user.id;
     
     setAchievements(prev => prev.map(achievement => {
       if (achievement.earned) return achievement;
@@ -1417,7 +1638,6 @@ function App() {
           shouldEarn = userSubmissions.length >= 1;
           break;
         case 'streak-3':
-          // Simplified streak check
           shouldEarn = userSubmissions.length >= 3;
           break;
         case 'streak-7':
@@ -1431,6 +1651,12 @@ function App() {
           break;
         case 'helpful-voter':
           shouldEarn = userVotes >= 50;
+          break;
+        case 'weekly-winner':
+          shouldEarn = isWeeklyWinner && weeklySubmissions.length > 0;
+          break;
+        case 'challenge-creator':
+          shouldEarn = userChallenges >= 1;
           break;
       }
       
@@ -1487,6 +1713,40 @@ function App() {
         ? { ...group, members: [...group.members, user.id], memberCount: group.memberCount + 1 }
         : group
     ));
+  };
+
+  const handleSubmitGroupChallenge = (groupId, challenge) => {
+    setGroups(prev => prev.map(group => {
+      if (group.id === groupId) {
+        const newChallenge = {
+          id: generateId(),
+          challenge,
+          submittedBy: user.id,
+          votes: []
+        };
+        return {
+          ...group,
+          nextWeekChallenges: [...(group.nextWeekChallenges || []), newChallenge]
+        };
+      }
+      return group;
+    }));
+  };
+
+  const handleVoteGroupChallenge = (groupId, challengeId) => {
+    setGroups(prev => prev.map(group => {
+      if (group.id === groupId) {
+        return {
+          ...group,
+          nextWeekChallenges: group.nextWeekChallenges.map(challenge =>
+            challenge.id === challengeId
+              ? { ...challenge, votes: [...(challenge.votes || []), user.id] }
+              : challenge
+          )
+        };
+      }
+      return group;
+    }));
   };
 
   // Activity submission handler
@@ -1618,6 +1878,8 @@ function App() {
             groups={groups}
             onCreateGroup={handleCreateGroup}
             onJoinGroup={handleJoinGroup}
+            onSubmitGroupChallenge={handleSubmitGroupChallenge}
+            onVoteGroupChallenge={handleVoteGroupChallenge}
           />
         )}
         
