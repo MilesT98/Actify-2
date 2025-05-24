@@ -2068,17 +2068,211 @@ const ActivityFeed = ({ user, submissions, groups, onSubmitActivity, onVote, onR
   );
 };
 
-const Leaderboard = ({ user, isMobile }) => {
+const Leaderboard = ({ submissions, groups, user, isMobile }) => {
+  const [viewMode, setViewMode] = useState('weekly'); // weekly or allTime
+
+  // Calculate user scores for both weekly and all-time
+  const calculateUserScores = (submissionsToAnalyze) => {
+    const userScores = {};
+
+    submissionsToAnalyze.forEach(submission => {
+      if (!userScores[submission.user_id]) {
+        userScores[submission.user_id] = {
+          user_id: submission.user_id,
+          user_name: submission.user_name,
+          totalPoints: 0,
+          submissions: 0,
+          averageRating: 0,
+          streak: 0,
+          reactions: 0,
+          votes: 0
+        };
+      }
+
+      const userScore = userScores[submission.user_id];
+      userScore.submissions++;
+      userScore.reactions += submission.reactions?.length || 0;
+      userScore.votes += submission.votes?.length || 0;
+
+      if (submission.votes && submission.votes.length > 0) {
+        const avgRating = submission.votes.reduce((sum, vote) => sum + vote.rating, 0) / submission.votes.length;
+        userScore.totalPoints += avgRating * 10;
+        userScore.averageRating = ((userScore.averageRating * (userScore.submissions - 1)) + avgRating) / userScore.submissions;
+      }
+    });
+
+    return Object.values(userScores).sort((a, b) => b.totalPoints - a.totalPoints);
+  };
+
+  const weeklySubmissions = submissions.filter(s => isCurrentWeek(s.timestamp));
+  const allTimeSubmissions = submissions;
+
+  const weeklyScores = calculateUserScores(weeklySubmissions);
+  const allTimeScores = calculateUserScores(allTimeSubmissions);
+
+  const currentScores = viewMode === 'weekly' ? weeklyScores : allTimeScores;
+  const currentSubmissions = viewMode === 'weekly' ? weeklySubmissions : allTimeSubmissions;
+
+  const getRankIcon = (index) => {
+    if (index === 0) return '👑';
+    if (index === 1) return '🥈';
+    if (index === 2) return '🥉';
+    return '🏅';
+  };
+
+  const weekStart = getWeekStart();
+  const weekEnd = getWeekEnd();
+
   return (
     <div className={`space-y-6 ${isMobile ? 'pb-20' : ''}`}>
-      <h2 className={`font-bold text-white flex items-center space-x-2 ${isMobile ? 'text-xl' : 'text-2xl'}`}>
-        <span>🏆</span>
-        <span>Leaderboard</span>
-      </h2>
-      <div className="text-center py-8 text-slate-400">
-        <div className="text-4xl mb-4">🏆</div>
-        <p className={isMobile ? 'text-sm' : ''}>Leaderboard coming soon! Complete activities to earn points.</p>
+      <div className={`flex justify-between items-center ${isMobile ? 'flex-col space-y-4' : ''}`}>
+        <h2 className={`font-bold text-white flex items-center space-x-2 ${isMobile ? 'text-xl self-start' : 'text-2xl'}`}>
+          <span>🏆</span>
+          <span>Leaderboard</span>
+        </h2>
+        <div className={`flex space-x-2 bg-slate-800 p-2 rounded-lg border border-slate-700 ${isMobile ? 'w-full' : ''}`}>
+          <button
+            onClick={() => setViewMode('weekly')}
+            className={`${isMobile ? 'flex-1' : ''} px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+              viewMode === 'weekly' ? 'bg-blue-600 text-white' : 'text-slate-400 hover:text-white'
+            }`}
+          >
+            📅 This Week
+          </button>
+          <button
+            onClick={() => setViewMode('allTime')}
+            className={`${isMobile ? 'flex-1' : ''} px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+              viewMode === 'allTime' ? 'bg-blue-600 text-white' : 'text-slate-400 hover:text-white'
+            }`}
+          >
+            ⏳ All Time
+          </button>
+        </div>
       </div>
+
+      {viewMode === 'weekly' && (
+        <div className="bg-blue-900 border border-blue-700 rounded-xl p-4 text-center">
+          <h3 className={`text-white font-semibold mb-2 ${isMobile ? 'text-base' : ''}`}>📅 Week of {weekStart.toLocaleDateString()} - {weekEnd.toLocaleDateString()}</h3>
+          <p className={`text-blue-200 ${isMobile ? 'text-sm' : 'text-sm'}`}>Leaderboard resets every Monday at midnight</p>
+          <p className={`text-blue-300 mt-1 ${isMobile ? 'text-xs' : 'text-xs'}`}>{currentSubmissions.length} submissions this week</p>
+        </div>
+      )}
+
+      <div className={`bg-slate-800 rounded-xl p-4 border border-slate-700 ${isMobile ? '' : 'p-6'}`}>
+        <h3 className={`font-semibold text-white mb-4 flex items-center space-x-2 ${isMobile ? 'text-lg' : 'text-xl'}`}>
+          <span>🌟</span>
+          <span>{viewMode === 'weekly' ? 'Weekly' : 'All-Time'} Top Performers</span>
+        </h3>
+
+        <div className="space-y-3">
+          {currentScores.slice(0, 10).map((userScore, index) => (
+            <div
+              key={`${viewMode}-${userScore.user_id}`}
+              className={`flex items-center justify-between p-3 rounded-lg transition-all ${
+                isMobile ? 'p-3' : 'p-4'
+              } ${
+                userScore.user_id === user.id
+                  ? 'bg-blue-900 border border-blue-700 ring-2 ring-blue-500'
+                  : 'bg-slate-700 hover:bg-slate-600'
+              }`}
+            >
+              <div className="flex items-center space-x-3">
+                <div className={`${isMobile ? 'w-10 h-10' : 'w-12 h-12'} rounded-full flex items-center justify-center text-white text-lg font-bold ${
+                  index === 0 ? 'bg-gradient-to-r from-yellow-400 to-yellow-600' :
+                    index === 1 ? 'bg-gradient-to-r from-gray-300 to-gray-500' :
+                      index === 2 ? 'bg-gradient-to-r from-orange-400 to-orange-600' :
+                        'bg-slate-600'
+                }`}>
+                  <span className={isMobile ? 'text-lg' : 'text-xl'}>{getRankIcon(index)}</span>
+                </div>
+                <div>
+                  <div className="flex items-center space-x-2">
+                    <p className={`text-white font-semibold ${isMobile ? 'text-sm' : ''}`}>{userScore.user_name}</p>
+                    {userScore.user_id === user.id && (
+                      <span className={`bg-blue-600 text-white px-2 py-1 rounded-full ${isMobile ? 'text-xs' : 'text-xs'}`}>YOU</span>
+                    )}
+                    {viewMode === 'weekly' && index === 0 && (
+                      <span className={`bg-yellow-600 text-white px-2 py-1 rounded-full ${isMobile ? 'text-xs' : 'text-xs'}`}>WEEKLY CHAMPION</span>
+                    )}
+                  </div>
+                  <div className={`flex items-center space-x-3 text-slate-400 ${isMobile ? 'text-xs' : 'text-sm'} ${isMobile ? 'space-x-2' : 'space-x-4'}`}>
+                    <span className="flex items-center space-x-1">
+                      <span>📸</span>
+                      <span>{userScore.submissions}</span>
+                    </span>
+                    <span className="flex items-center space-x-1">
+                      <span>⭐</span>
+                      <span>{userScore.averageRating.toFixed(1)}</span>
+                    </span>
+                    {!isMobile && (
+                      <>
+                        <span className="flex items-center space-x-1">
+                          <span>❤️</span>
+                          <span>{userScore.reactions}</span>
+                        </span>
+                        <span className="flex items-center space-x-1">
+                          <span>🗳️</span>
+                          <span>{userScore.votes}</span>
+                        </span>
+                      </>
+                    )}
+                  </div>
+                </div>
+              </div>
+              <div className="text-right">
+                <p className={`font-bold text-white ${isMobile ? 'text-lg' : 'text-xl'}`}>{Math.round(userScore.totalPoints)}</p>
+                <p className={`text-slate-400 ${isMobile ? 'text-xs' : 'text-sm'}`}>points</p>
+              </div>
+            </div>
+          ))}
+
+          {currentScores.length === 0 && (
+            <div className="text-center py-12 text-slate-400">
+              <div className="text-4xl mb-4">🏆</div>
+              <p className={isMobile ? 'text-sm' : ''}>No submissions yet {viewMode === 'weekly' ? 'this week' : 'ever'}. Be the first!</p>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {user && currentScores.find(s => s.user_id === user.id) && (
+        <div className="bg-gradient-to-r from-blue-900 to-purple-900 border border-blue-700 rounded-xl p-4">
+          <h3 className={`font-semibold text-white mb-4 flex items-center space-x-2 ${isMobile ? 'text-base' : 'text-lg'}`}>
+            <span>📊</span>
+            <span>Your {viewMode === 'weekly' ? 'Weekly' : 'All-Time'} Performance</span>
+          </h3>
+          <div className={`grid gap-4 ${isMobile ? 'grid-cols-2' : 'grid-cols-2 md:grid-cols-4'}`}>
+            <div className="text-center">
+              <p className={`font-bold text-white ${isMobile ? 'text-2xl' : 'text-3xl'}`}>
+                #{currentScores.findIndex(u => u.user_id === user.id) + 1}
+              </p>
+              <p className={`text-blue-200 ${isMobile ? 'text-xs' : 'text-sm'}`}>{viewMode === 'weekly' ? 'Weekly' : 'All-Time'} Rank</p>
+            </div>
+            <div className="text-center">
+              <p className={`font-bold text-white ${isMobile ? 'text-2xl' : 'text-3xl'}`}>
+                {Math.round(currentScores.find(u => u.user_id === user.id)?.totalPoints || 0)}
+              </p>
+              <p className={`text-blue-200 ${isMobile ? 'text-xs' : 'text-sm'}`}>Total Points</p>
+            </div>
+            {!isMobile && (
+              <>
+                <div className="text-center">
+                  <p className="text-3xl font-bold text-white">
+                    {currentScores.find(u => u.user_id === user.id)?.submissions || 0}
+                  </p>
+                  <p className="text-blue-200 text-sm">Submissions</p>
+                </div>
+                <div className="text-center">
+                  <p className="text-3xl font-bold text-white">
+                    {(currentScores.find(u => u.user_id === user.id)?.averageRating || 0).toFixed(1)}
+                  </p>
+                  <p className="text-blue-200 text-sm">Avg Rating</p>
+                </div>
+              </>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 };
