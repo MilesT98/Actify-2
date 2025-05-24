@@ -204,6 +204,16 @@ const isCurrentWeek = (timestamp) => {
   return submissionWeek === currentWeek;
 };
 
+// Generate avatar color based on name
+const getAvatarColor = (name) => {
+  const colors = [
+    'bg-blue-600', 'bg-purple-600', 'bg-green-600', 'bg-yellow-600',
+    'bg-red-600', 'bg-indigo-600', 'bg-pink-600', 'bg-teal-600'
+  ];
+  const hash = name.split('').reduce((a, b) => a + b.charCodeAt(0), 0);
+  return colors[hash % colors.length];
+};
+
 // Toast Notification Component
 const Toast = ({ message, type, onClose }) => {
   useEffect(() => {
