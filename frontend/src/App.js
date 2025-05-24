@@ -1233,19 +1233,306 @@ const ActivityFeed = ({ user, submissions, groups, onSubmitActivity, onVote, onR
 // These would need similar mobile optimizations but keeping them simpler for now
 
 const GroupsView = ({ user, groups, onCreateGroup, onJoinGroup, onSubmitGroupChallenge, onVoteGroupChallenge, isMobile }) => {
-  // Simplified groups view - would need full mobile optimization
+  const [showCreateForm, setShowCreateForm] = useState(false);
+  const [newGroup, setNewGroup] = useState({ name: '', description: '', customActivity: '', isPublic: true });
+  const [joinCode, setJoinCode] = useState('');
+  const [searchTerm, setSearchTerm] = useState('');
+  const [challengeInputs, setChallengeInputs] = useState({});
+
+  const handleCreateGroup = (e) => {
+    e.preventDefault();
+    if (newGroup.name && newGroup.description && newGroup.customActivity) {
+      onCreateGroup({
+        ...newGroup,
+        id: generateId(),
+        members: [user.id],
+        createdBy: user.id,
+        memberCount: 1,
+        currentChallenge: newGroup.customActivity,
+        nextWeekChallenges: [],
+        challengeSubmissionDeadline: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString()
+      });
+      setNewGroup({ name: '', description: '', customActivity: '', isPublic: true });
+      setShowCreateForm(false);
+    }
+  };
+
+  const handleJoinGroup = (e) => {
+    e.preventDefault();
+    if (joinCode) {
+      onJoinGroup(joinCode);
+      setJoinCode('');
+    }
+  };
+
+  const handleSubmitChallenge = (groupId) => {
+    const challenge = challengeInputs[groupId];
+    if (challenge && challenge.trim()) {
+      onSubmitGroupChallenge(groupId, challenge.trim());
+      setChallengeInputs(prev => ({ ...prev, [groupId]: '' }));
+    }
+  };
+
+  const userGroups = groups.filter(g => g.members.includes(user.id));
+  const availableGroups = groups.filter(g => 
+    !g.members.includes(user.id) && 
+    g.isPublic &&
+    (g.name.toLowerCase().includes(searchTerm.toLowerCase()) || 
+     g.description.toLowerCase().includes(searchTerm.toLowerCase()))
+  );
+
   return (
     <div className={`space-y-6 ${isMobile ? 'pb-20' : ''}`}>
-      <div className="flex justify-between items-center">
+      <div className={`flex ${isMobile ? 'flex-col space-y-4' : 'justify-between items-center'}`}>
         <h2 className={`font-bold text-white flex items-center space-x-2 ${isMobile ? 'text-xl' : 'text-2xl'}`}>
           <span>👥</span>
           <span>Groups</span>
         </h2>
+        <button
+          onClick={() => setShowCreateForm(true)}
+          className={`bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium transition-all hover:scale-105 shadow-lg ${
+            isMobile ? 'px-4 py-2 text-sm self-start' : 'px-6 py-3'
+          }`}
+        >
+          ➕ Create Group
+        </button>
       </div>
-      <div className="text-center py-12 text-slate-400">
-        <div className="text-4xl mb-4">🚧</div>
-        <p className={isMobile ? 'text-sm' : ''}>Groups view - Mobile optimization in progress</p>
+
+      {/* Create Group Modal */}
+      {showCreateForm && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className={`bg-slate-800 rounded-xl p-6 w-full border border-slate-700 ${isMobile ? 'max-w-sm' : 'max-w-md'}`}>
+            <h3 className={`font-semibold text-white mb-4 ${isMobile ? 'text-lg' : 'text-xl'}`}>🎨 Create New Group</h3>
+            <form onSubmit={handleCreateGroup} className="space-y-4">
+              <input
+                type="text"
+                placeholder="Group Name"
+                value={newGroup.name}
+                onChange={(e) => setNewGroup({...newGroup, name: e.target.value})}
+                className="w-full p-3 bg-slate-700 text-white rounded-lg border border-slate-600 focus:border-blue-500 focus:outline-none transition-colors"
+                required
+              />
+              <textarea
+                placeholder="Group Description"
+                value={newGroup.description}
+                onChange={(e) => setNewGroup({...newGroup, description: e.target.value})}
+                className="w-full p-3 bg-slate-700 text-white rounded-lg border border-slate-600 focus:border-blue-500 focus:outline-none h-20 resize-none transition-colors"
+                required
+              />
+              <input
+                type="text"
+                placeholder="First Weekly Challenge"
+                value={newGroup.customActivity}
+                onChange={(e) => setNewGroup({...newGroup, customActivity: e.target.value})}
+                className="w-full p-3 bg-slate-700 text-white rounded-lg border border-slate-600 focus:border-blue-500 focus:outline-none transition-colors"
+                required
+              />
+              <div className="flex items-center space-x-2">
+                <input
+                  type="checkbox"
+                  id="isPublic"
+                  checked={newGroup.isPublic}
+                  onChange={(e) => setNewGroup({...newGroup, isPublic: e.target.checked})}
+                  className="rounded text-blue-500"
+                />
+                <label htmlFor="isPublic" className="text-slate-300 text-sm">Make group public</label>
+              </div>
+              <div className="flex space-x-3">
+                <button
+                  type="submit"
+                  className="flex-1 bg-blue-600 hover:bg-blue-700 text-white py-3 px-4 rounded-lg font-medium transition-colors"
+                >
+                  Create 🎉
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setShowCreateForm(false)}
+                  className="flex-1 bg-slate-600 hover:bg-slate-700 text-white py-3 px-4 rounded-lg font-medium transition-colors"
+                >
+                  Cancel
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Join Group */}
+      <div className={`bg-slate-800 rounded-xl p-4 border border-slate-700 ${isMobile ? '' : 'p-6'}`}>
+        <h3 className={`font-semibold text-white mb-4 flex items-center space-x-2 ${isMobile ? 'text-base' : 'text-lg'}`}>
+          <span>🔗</span>
+          <span>Join a Group</span>
+        </h3>
+        <form onSubmit={handleJoinGroup} className={`flex ${isMobile ? 'flex-col space-y-3' : 'space-x-3'}`}>
+          <input
+            type="text"
+            placeholder="Enter group ID"
+            value={joinCode}
+            onChange={(e) => setJoinCode(e.target.value)}
+            className="flex-1 p-3 bg-slate-700 text-white rounded-lg border border-slate-600 focus:border-blue-500 focus:outline-none transition-colors"
+          />
+          <button
+            type="submit"
+            className={`bg-green-600 hover:bg-green-700 text-white rounded-lg font-medium transition-all hover:scale-105 ${
+              isMobile ? 'px-4 py-3 text-sm' : 'px-6 py-3'
+            }`}
+          >
+            Join 🚀
+          </button>
+        </form>
       </div>
+
+      {/* Your Groups */}
+      <div>
+        <h3 className={`font-semibold text-white mb-4 flex items-center space-x-2 ${isMobile ? 'text-lg' : 'text-xl'}`}>
+          <span>🏠</span>
+          <span>Your Groups ({userGroups.length})</span>
+        </h3>
+        <div className={`grid gap-4 ${isMobile ? '' : ''}`}>
+          {userGroups.map(group => {
+            const deadlineDate = new Date(group.challengeSubmissionDeadline);
+            const daysLeft = Math.ceil((deadlineDate - new Date()) / (1000 * 60 * 60 * 24));
+            const userAlreadySubmitted = group.nextWeekChallenges?.some(ch => ch.submittedBy === user.id);
+            
+            return (
+              <div key={group.id} className={`bg-slate-800 rounded-xl p-4 border border-slate-700 hover:border-blue-500 transition-colors group-card ${isMobile ? '' : 'p-6'}`}>
+                <div className="flex justify-between items-start mb-4">
+                  <div className="flex-1">
+                    <h4 className={`font-semibold text-white ${isMobile ? 'text-base' : 'text-lg'}`}>{group.name}</h4>
+                    <p className={`text-slate-400 ${isMobile ? 'text-sm' : ''}`}>{group.description}</p>
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <span className={`bg-slate-700 text-slate-300 px-3 py-1 rounded-full ${isMobile ? 'text-xs' : 'text-sm'}`}>
+                      👥 {group.memberCount}
+                    </span>
+                    {group.createdBy === user.id && (
+                      <span className={`bg-yellow-600 text-white px-2 py-1 rounded-full ${isMobile ? 'text-xs' : 'text-xs'}`}>ADMIN</span>
+                    )}
+                  </div>
+                </div>
+
+                <div className="bg-slate-700 rounded-lg p-4 mb-4">
+                  <p className={`text-slate-300 mb-1 ${isMobile ? 'text-xs' : 'text-sm'}`}>This Week's Challenge:</p>
+                  <p className={`text-white font-medium ${isMobile ? 'text-sm' : ''}`}>{group.currentChallenge}</p>
+                </div>
+
+                <div className="bg-blue-900 border border-blue-700 rounded-lg p-4 mb-4">
+                  <div className="flex justify-between items-center mb-3">
+                    <h5 className={`text-white font-semibold ${isMobile ? 'text-sm' : ''}`}>💡 Next Week's Challenge Ideas</h5>
+                    <span className={`text-blue-200 ${isMobile ? 'text-xs' : 'text-sm'}`}>{daysLeft} days to submit</span>
+                  </div>
+                  
+                  {!userAlreadySubmitted && (
+                    <div className={`flex mb-3 ${isMobile ? 'flex-col space-y-2' : 'space-x-2'}`}>
+                      <input
+                        type="text"
+                        placeholder="Suggest a challenge for next week..."
+                        value={challengeInputs[group.id] || ''}
+                        onChange={(e) => setChallengeInputs(prev => ({ ...prev, [group.id]: e.target.value }))}
+                        className="flex-1 p-2 bg-slate-700 text-white rounded-lg border border-slate-600 focus:border-blue-500 focus:outline-none text-sm"
+                      />
+                      <button
+                        onClick={() => handleSubmitChallenge(group.id)}
+                        disabled={!challengeInputs[group.id]?.trim()}
+                        className="bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors"
+                      >
+                        Submit
+                      </button>
+                    </div>
+                  )}
+
+                  <div className="space-y-2">
+                    {group.nextWeekChallenges?.map(challenge => (
+                      <div key={challenge.id} className="bg-slate-800 rounded-lg p-3 flex justify-between items-center">
+                        <div>
+                          <p className={`text-white ${isMobile ? 'text-sm' : 'text-sm'}`}>{challenge.challenge}</p>
+                          <p className={`text-slate-400 ${isMobile ? 'text-xs' : 'text-xs'}`}>by {challenge.submittedBy === user.id ? 'You' : challenge.submittedBy}</p>
+                        </div>
+                        <div className="flex items-center space-x-2">
+                          <span className={`text-yellow-400 ${isMobile ? 'text-sm' : 'text-sm'}`}>👍 {challenge.votes?.length || 0}</span>
+                          {challenge.submittedBy !== user.id && !challenge.votes?.includes(user.id) && (
+                            <button
+                              onClick={() => onVoteGroupChallenge(group.id, challenge.id)}
+                              className={`bg-green-600 hover:bg-green-700 text-white rounded ${isMobile ? 'px-2 py-1 text-xs' : 'px-2 py-1 text-xs'}`}
+                            >
+                              Vote
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                    {(!group.nextWeekChallenges || group.nextWeekChallenges.length === 0) && (
+                      <p className={`text-slate-500 text-center py-2 ${isMobile ? 'text-sm' : 'text-sm'}`}>No challenges submitted yet. Be the first!</p>
+                    )}
+                  </div>
+                </div>
+
+                <div className={`flex justify-between items-center ${isMobile ? 'text-sm' : 'text-sm'}`}>
+                  <span className="text-slate-500">ID: {group.id}</span>
+                  <button
+                    onClick={() => {
+                      navigator.clipboard.writeText(group.id);
+                    }}
+                    className="text-blue-400 hover:text-blue-300 transition-colors"
+                  >
+                    📋 Copy ID
+                  </button>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* Discover Groups */}
+      {availableGroups.length > 0 && (
+        <div>
+          <div className={`flex justify-between items-center mb-4 ${isMobile ? 'flex-col space-y-4' : ''}`}>
+            <h3 className={`font-semibold text-white flex items-center space-x-2 ${isMobile ? 'text-lg self-start' : 'text-xl'}`}>
+              <span>🔍</span>
+              <span>Discover Groups</span>
+            </h3>
+            <input
+              type="text"
+              placeholder="Search groups..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className={`bg-slate-700 text-white rounded-lg border border-slate-600 focus:border-blue-500 focus:outline-none transition-colors ${
+                isMobile ? 'px-3 py-2 text-sm w-full' : 'px-3 py-2'
+              }`}
+            />
+          </div>
+          <div className="grid gap-4">
+            {availableGroups.slice(0, 6).map(group => (
+              <div key={group.id} className={`bg-slate-800 rounded-xl p-4 border border-slate-700 hover:border-green-500 transition-colors group-card ${isMobile ? '' : 'p-6'}`}>
+                <div className="flex justify-between items-start mb-3">
+                  <div className="flex-1">
+                    <h4 className={`font-semibold text-white ${isMobile ? 'text-base' : 'text-lg'}`}>{group.name}</h4>
+                    <p className={`text-slate-400 ${isMobile ? 'text-sm' : ''}`}>{group.description}</p>
+                  </div>
+                  <div className="flex items-center space-x-3">
+                    <span className={`bg-slate-700 text-slate-300 px-3 py-1 rounded-full ${isMobile ? 'text-xs' : 'text-sm'}`}>
+                      👥 {group.memberCount}
+                    </span>
+                    <button
+                      onClick={() => onJoinGroup(group.id)}
+                      className={`bg-green-600 hover:bg-green-700 text-white rounded-lg font-medium transition-all hover:scale-105 ${
+                        isMobile ? 'px-3 py-1 text-sm' : 'px-4 py-2 text-sm'
+                      }`}
+                    >
+                      Join 🚀
+                    </button>
+                  </div>
+                </div>
+                <div className="bg-slate-700 rounded-lg p-3">
+                  <p className={`text-slate-300 ${isMobile ? 'text-xs' : 'text-sm'}`}>This Week's Challenge:</p>
+                  <p className={`text-white ${isMobile ? 'text-sm' : ''}`}>{group.currentChallenge}</p>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   );
 };
