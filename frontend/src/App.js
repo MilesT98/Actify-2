@@ -270,67 +270,184 @@ const ACHIEVEMENTS = [
   { id: 'challenge-creator', name: 'Innovator', description: 'Suggest a winning group challenge', icon: '💡' }
 ];
 
-// Mobile Camera Component
+// Mobile Camera Component - IMPROVED MOBILE COMPATIBILITY
 const MobileCameraCapture = ({ onCapture, onClose }) => {
   const videoRef = useRef(null);
   const [stream, setStream] = useState(null);
   const [capturedPhotos, setCapturedPhotos] = useState({ front: null, back: null });
   const [currentCamera, setCurrentCamera] = useState('back');
   const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const [availableCameras, setAvailableCameras] = useState([]);
+  const [hasPermission, setHasPermission] = useState(false);
 
   useEffect(() => {
-    startCamera(currentCamera);
+    initializeCamera();
     return () => {
       stopStream();
     };
-  }, [currentCamera]);
+  }, []);
+
+  useEffect(() => {
+    if (hasPermission) {
+      startCamera(currentCamera);
+    }
+  }, [currentCamera, hasPermission]);
+
+  const initializeCamera = async () => {
+    try {
+      setIsLoading(true);
+      setError(null);
+
+      // Check if mediaDevices is supported
+      if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+        throw new Error('Camera not supported on this device');
+      }
+
+      // Request permissions first
+      const permissionResult = await navigator.permissions.query({ name: 'camera' });
+      console.log('📷 Camera permission status:', permissionResult.state);
+
+      // Get available cameras
+      const devices = await navigator.mediaDevices.enumerateDevices();
+      const videoDevices = devices.filter(device => device.kind === 'videoinput');
+      setAvailableCameras(videoDevices);
+      console.log('📱 Available cameras:', videoDevices.length);
+
+      if (videoDevices.length === 0) {
+        throw new Error('No cameras found on this device');
+      }
+
+      setHasPermission(true);
+      
+    } catch (error) {
+      console.error('❌ Camera initialization failed:', error);
+      setError(error.message);
+      setIsLoading(false);
+    }
+  };
 
   const startCamera = async (facingMode) => {
     try {
       setIsLoading(true);
+      setError(null);
+      
       if (stream) {
         stream.getTracks().forEach(track => track.stop());
       }
 
-      const constraints = {
-        video: {
-          facingMode: facingMode === 'front' ? 'user' : 'environment',
-          width: { ideal: 1280 },
-          height: { ideal: 720 }
-        }
-      };
+      // Try different constraint strategies for better mobile compatibility
+      let constraints;
+      
+      if (availableCameras.length > 1) {
+        // If we have multiple cameras, try to use specific device ID
+        const targetCamera = availableCameras.find(device => 
+          facingMode === 'front' ? 
+            device.label.toLowerCase().includes('front') || device.label.toLowerCase().includes('user') :
+            device.label.toLowerCase().includes('back') || device.label.toLowerCase().includes('environment')
+        );
 
+        constraints = {
+          video: {
+            deviceId: targetCamera ? { exact: targetCamera.deviceId } : undefined,
+            facingMode: facingMode === 'front' ? 'user' : 'environment',
+            width: { ideal: 1280, max: 1920 },
+            height: { ideal: 720, max: 1080 }
+          },
+          audio: false
+        };
+      } else {
+        // Fallback for devices with single camera
+        constraints = {
+          video: {
+            facingMode: facingMode === 'front' ? 'user' : { ideal: 'environment' },
+            width: { ideal: 1280, max: 1920 },
+            height: { ideal: 720, max: 1080 }
+          },
+          audio: false
+        };
+      }
+
+      console.log('🎥 Starting camera with constraints:', constraints);
       const newStream = await navigator.mediaDevices.getUserMedia(constraints);
+      
       setStream(newStream);
       if (videoRef.current) {
         videoRef.current.srcObject = newStream;
+        videoRef.current.play();
       }
       setIsLoading(false);
+      
     } catch (error) {
-      console.error('Error accessing camera:', error);
-      setIsLoading(false);
+      console.error('❌ Camera start failed:', error);
+      
+      // Try fallback constraints
+      try {
+        console.log('🔄 Trying fallback camera constraints...');
+        const fallbackConstraints = {
+          video: {
+            width: { ideal: 640, max: 1280 },
+            height: { ideal: 480, max: 720 }
+          },
+          audio: false
+        };
+        
+        const fallbackStream = await navigator.mediaDevices.getUserMedia(fallbackConstraints);
+        setStream(fallbackStream);
+        if (videoRef.current) {
+          videoRef.current.srcObject = fallbackStream;
+          videoRef.current.play();
+        }
+        setIsLoading(false);
+        
+      } catch (fallbackError) {
+        console.error('❌ Fallback camera also failed:', fallbackError);
+        setError(`Camera access failed: ${fallbackError.message}`);
+        setIsLoading(false);
+      }
     }
   };
 
   const stopStream = () => {
     if (stream) {
       stream.getTracks().forEach(track => track.stop());
+      setStream(null);
     }
   };
 
   const capturePhoto = () => {
-    const video = videoRef.current;
-    const canvas = document.createElement('canvas');
-    canvas.width = video.videoWidth;
-    canvas.height = video.videoHeight;
-    const ctx = canvas.getContext('2d');
-    ctx.drawImage(video, 0, 0);
-    const dataURL = canvas.toDataURL('image/jpeg', 0.8);
-    setCapturedPhotos(prev => ({ ...prev, [currentCamera]: dataURL }));
+    if (!videoRef.current || videoRef.current.readyState !== 4) {
+      alert('Camera not ready. Please wait a moment and try again.');
+      return;
+    }
+
+    try {
+      const video = videoRef.current;
+      const canvas = document.createElement('canvas');
+      canvas.width = video.videoWidth || 640;
+      canvas.height = video.videoHeight || 480;
+      const ctx = canvas.getContext('2d');
+      ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+      const dataURL = canvas.toDataURL('image/jpeg', 0.8);
+      setCapturedPhotos(prev => ({ ...prev, [currentCamera]: dataURL }));
+      
+      // Haptic feedback if available
+      if (navigator.vibrate) {
+        navigator.vibrate(50);
+      }
+      
+    } catch (error) {
+      console.error('❌ Photo capture failed:', error);
+      alert('Failed to capture photo. Please try again.');
+    }
   };
 
   const switchCamera = () => {
-    setCurrentCamera(prev => prev === 'front' ? 'back' : 'front');
+    if (availableCameras.length > 1) {
+      setCurrentCamera(prev => prev === 'front' ? 'back' : 'front');
+    } else {
+      alert('Only one camera available on this device');
+    }
   };
 
   const handleSubmit = () => {
@@ -342,6 +459,64 @@ const MobileCameraCapture = ({ onCapture, onClose }) => {
       alert('Please capture both front and back photos! 📸');
     }
   };
+
+  const handleUsePlaceholder = () => {
+    // Provide placeholder images for testing
+    const placeholderPhotos = {
+      front: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=400&h=300&fit=crop',
+      back: 'https://images.unsplash.com/photo-1441986300917-64674bd600d8?w=400&h=300&fit=crop'
+    };
+    onCapture(placeholderPhotos);
+    onClose();
+  };
+
+  if (error) {
+    return (
+      <div className="fixed inset-0 bg-black z-50 flex flex-col">
+        <div className="flex justify-between items-center p-4 bg-slate-900 text-white">
+          <button onClick={onClose} className="text-xl p-2">✕</button>
+          <h2 className="font-semibold">📷 Camera Error</h2>
+          <div></div>
+        </div>
+        
+        <div className="flex-1 flex items-center justify-center p-4">
+          <div className="text-center text-white max-w-sm">
+            <div className="text-6xl mb-4">📱</div>
+            <h3 className="text-xl font-semibold mb-4">Camera Access Issue</h3>
+            <p className="text-slate-300 mb-6 text-sm leading-relaxed">
+              {error}
+            </p>
+            
+            <div className="space-y-4">
+              <button
+                onClick={initializeCamera}
+                className="w-full bg-blue-600 hover:bg-blue-700 text-white py-3 px-4 rounded-lg font-medium"
+              >
+                🔄 Try Again
+              </button>
+              
+              <button
+                onClick={handleUsePlaceholder}
+                className="w-full bg-slate-700 hover:bg-slate-600 text-white py-3 px-4 rounded-lg font-medium"
+              >
+                📸 Use Demo Photos
+              </button>
+              
+              <div className="text-xs text-slate-400 mt-4">
+                <p className="mb-2">📱 Make sure to:</p>
+                <ul className="text-left space-y-1">
+                  <li>• Allow camera permissions</li>
+                  <li>• Use HTTPS (secure connection)</li>
+                  <li>• Try refreshing the page</li>
+                  <li>• Check if other apps are using camera</li>
+                </ul>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="fixed inset-0 bg-black z-50 flex flex-col">
@@ -365,6 +540,9 @@ const MobileCameraCapture = ({ onCapture, onClose }) => {
             <div className="text-white text-center">
               <div className="loading-spinner mb-4"></div>
               <p>Loading camera...</p>
+              <p className="text-sm text-slate-400 mt-2">
+                Please allow camera permissions when prompted
+              </p>
             </div>
           </div>
         ) : (
@@ -375,23 +553,27 @@ const MobileCameraCapture = ({ onCapture, onClose }) => {
               playsInline
               muted
               className="w-full h-full object-cover"
+              onLoadedData={() => console.log('📹 Video loaded')}
+              onError={(e) => console.error('❌ Video error:', e)}
             />
             {/* Camera overlay */}
             <div className="absolute inset-0">
               {/* Camera indicator */}
               <div className="absolute top-4 left-4 bg-black bg-opacity-50 text-white px-3 py-1 rounded-full text-sm">
-                {currentCamera === 'front' ? '📱 Front' : '🌍 Back'}
+                {currentCamera === 'front' ? '📱 Front' : '🌍 Back'} 
+                {availableCameras.length > 1 && ` (${availableCameras.length} available)`}
               </div>
+              
               {/* Preview thumbnails */}
               <div className="absolute top-4 right-4 space-y-2">
                 {capturedPhotos.front && (
-                  <div className="w-16 h-16 rounded-lg overflow-hidden border-2 border-green-400">
+                  <div className="relative w-16 h-16 rounded-lg overflow-hidden border-2 border-green-400">
                     <img src={capturedPhotos.front} alt="Front" className="w-full h-full object-cover" />
                     <div className="absolute -bottom-1 -right-1 bg-green-400 text-white text-xs rounded-full w-4 h-4 flex items-center justify-center">✓</div>
                   </div>
                 )}
                 {capturedPhotos.back && (
-                  <div className="w-16 h-16 rounded-lg overflow-hidden border-2 border-green-400">
+                  <div className="relative w-16 h-16 rounded-lg overflow-hidden border-2 border-green-400">
                     <img src={capturedPhotos.back} alt="Back" className="w-full h-full object-cover" />
                     <div className="absolute -bottom-1 -right-1 bg-green-400 text-white text-xs rounded-full w-4 h-4 flex items-center justify-center">✓</div>
                   </div>
@@ -408,22 +590,31 @@ const MobileCameraCapture = ({ onCapture, onClose }) => {
           {/* Switch Camera */}
           <button
             onClick={switchCamera}
-            className="bg-slate-700 text-white p-4 rounded-full"
+            disabled={availableCameras.length <= 1}
+            className="bg-slate-700 text-white p-4 rounded-full disabled:opacity-50"
           >
             🔄
           </button>
+          
           {/* Capture Button */}
           <button
             onClick={capturePhoto}
-            className="bg-white w-20 h-20 rounded-full flex items-center justify-center text-2xl font-bold shadow-lg"
+            disabled={isLoading}
+            className="bg-white w-20 h-20 rounded-full flex items-center justify-center text-2xl font-bold shadow-lg disabled:opacity-50"
           >
             {capturedPhotos[currentCamera] ? '✓' : '📷'}
           </button>
-          {/* Gallery (placeholder) */}
-          <button className="bg-slate-700 text-white p-4 rounded-full opacity-50">
+          
+          {/* Demo Photos */}
+          <button 
+            onClick={handleUsePlaceholder}
+            className="bg-slate-700 text-white p-4 rounded-full"
+            title="Use demo photos"
+          >
             🖼️
           </button>
         </div>
+        
         {/* Instructions */}
         <div className="text-center mt-4">
           <p className="text-white text-sm">
@@ -432,6 +623,9 @@ const MobileCameraCapture = ({ onCapture, onClose }) => {
                 !capturedPhotos.back ? 'Switch to back camera' :
                   'Ready to post! 🎉'}
           </p>
+          {availableCameras.length <= 1 && (
+            <p className="text-slate-400 text-xs mt-1">Single camera detected</p>
+          )}
         </div>
       </div>
     </div>
