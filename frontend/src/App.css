@@ -33,6 +33,21 @@ body {
   background: #64748b;
 }
 
+/* Loading spinner */
+.loading-spinner {
+  width: 32px;
+  height: 32px;
+  border: 3px solid #334155;
+  border-top: 3px solid #3b82f6;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
 /* BeReal-inspired animations */
 .fade-in {
   animation: fadeIn 0.3s ease-in-out;
@@ -62,6 +77,43 @@ body {
     opacity: 1;
     transform: translateY(0);
   }
+}
+
+/* Pulse animation for notifications */
+@keyframes pulse {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.5;
+  }
+}
+
+.animate-pulse {
+  animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+
+/* Bounce animation for reactions */
+@keyframes bounce {
+  0%, 20%, 53%, 80%, 100% {
+    animation-timing-function: cubic-bezier(0.215, 0.61, 0.355, 1);
+    transform: translate3d(0, 0, 0);
+  }
+  40%, 43% {
+    animation-timing-function: cubic-bezier(0.755, 0.05, 0.855, 0.06);
+    transform: translate3d(0, -8px, 0);
+  }
+  70% {
+    animation-timing-function: cubic-bezier(0.755, 0.05, 0.855, 0.06);
+    transform: translate3d(0, -4px, 0);
+  }
+  90% {
+    transform: translate3d(0, -2px, 0);
+  }
+}
+
+.animate-bounce {
+  animation: bounce 1s infinite;
 }
 
 /* Camera capture styles */
@@ -136,6 +188,16 @@ body {
   transform: scale(0.9);
 }
 
+/* Reaction hover effects */
+.reaction-hover {
+  transition: all 0.2s ease;
+}
+
+.reaction-hover:hover {
+  transform: scale(1.1);
+  background-color: rgba(59, 130, 246, 0.1);
+}
+
 /* Leaderboard ranking badges */
 .rank-badge {
   position: relative;
@@ -167,15 +229,6 @@ body {
 /* Timer countdown styles */
 .timer-pulse {
   animation: pulse 2s infinite;
-}
-
-@keyframes pulse {
-  0%, 100% {
-    opacity: 1;
-  }
-  50% {
-    opacity: 0.7;
-  }
 }
 
 /* Group card hover effects */
@@ -212,6 +265,59 @@ body {
   }
 }
 
+/* Achievement card styles */
+.achievement-card {
+  transition: all 0.3s ease;
+}
+
+.achievement-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 25px rgba(0, 0, 0, 0.2);
+}
+
+.achievement-glow {
+  box-shadow: 0 0 20px rgba(59, 130, 246, 0.3);
+}
+
+/* Intro slide transitions */
+.slide-enter {
+  opacity: 0;
+  transform: translateX(30px);
+}
+
+.slide-enter-active {
+  opacity: 1;
+  transform: translateX(0);
+  transition: opacity 300ms, transform 300ms;
+}
+
+.slide-exit {
+  opacity: 1;
+  transform: translateX(0);
+}
+
+.slide-exit-active {
+  opacity: 0;
+  transform: translateX(-30px);
+  transition: opacity 300ms, transform 300ms;
+}
+
+/* Quick reaction popup */
+.reaction-popup {
+  animation: popIn 0.2s ease-out;
+}
+
+@keyframes popIn {
+  0% {
+    opacity: 0;
+    transform: scale(0.8) translateY(10px);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}
+
 /* Mobile optimizations */
 @media (max-width: 768px) {
   .dual-photo-container {
@@ -228,6 +334,25 @@ body {
   .camera-overlay::before {
     width: 150px;
     height: 150px;
+  }
+  
+  .mobile-grid {
+    grid-template-columns: 1fr;
+  }
+  
+  .mobile-full {
+    margin-left: -1rem;
+    margin-right: -1rem;
+    border-radius: 0;
+  }
+  
+  .mobile-padding {
+    padding-left: 1rem;
+    padding-right: 1rem;
+  }
+  
+  .text-mobile-sm {
+    font-size: 0.875rem;
   }
 }
 
@@ -269,6 +394,14 @@ textarea:focus-visible {
   background: linear-gradient(135deg, #059669, #047857);
   transform: translateY(-1px);
   box-shadow: 0 6px 20px rgba(16, 185, 129, 0.3);
+}
+
+/* Gradient text effects */
+.gradient-text {
+  background: linear-gradient(135deg, #3b82f6, #8b5cf6);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
 }
 
 /* Dark theme overrides */
@@ -353,15 +486,30 @@ textarea:focus-visible {
   }
 }
 
-@media (max-width: 640px) {
-  .mobile-full {
-    margin-left: -1rem;
-    margin-right: -1rem;
-    border-radius: 0;
+/* High contrast mode support */
+@media (prefers-contrast: high) {
+  .bg-slate-800 {
+    background-color: #000000;
+    border-color: #ffffff;
   }
   
-  .mobile-padding {
-    padding-left: 1rem;
-    padding-right: 1rem;
+  .text-slate-400 {
+    color: #cccccc;
+  }
+  
+  .border-slate-700 {
+    border-color: #888888;
+  }
+}
+
+/* Print styles */
+@media print {
+  .no-print {
+    display: none !important;
+  }
+  
+  body {
+    background: white;
+    color: black;
   }
 }
