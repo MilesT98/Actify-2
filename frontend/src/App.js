@@ -336,11 +336,25 @@ const MobileCameraCapture = ({ onCapture, onClose }) => {
         stream.getTracks().forEach(track => track.stop());
       }
 
-      // Try different constraint strategies for better mobile compatibility
+      // iPhone-optimized camera constraints
       let constraints;
       
-      if (availableCameras.length > 1) {
-        // If we have multiple cameras, try to use specific device ID
+      // Detect if we're on iOS for special handling
+      const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
+      
+      if (isIOS) {
+        // iOS-specific constraints for better compatibility
+        constraints = {
+          video: {
+            facingMode: facingMode === 'front' ? 'user' : 'environment',
+            width: { ideal: 720, max: 1280 },
+            height: { ideal: 1280, max: 1920 },
+            frameRate: { ideal: 30, max: 30 }
+          },
+          audio: false
+        };
+      } else if (availableCameras.length > 1) {
+        // Android/other devices with multiple cameras
         const targetCamera = availableCameras.find(device => 
           facingMode === 'front' ? 
             device.label.toLowerCase().includes('front') || device.label.toLowerCase().includes('user') :
@@ -374,20 +388,26 @@ const MobileCameraCapture = ({ onCapture, onClose }) => {
       setStream(newStream);
       if (videoRef.current) {
         videoRef.current.srcObject = newStream;
-        videoRef.current.play();
+        // Force play for iOS
+        try {
+          await videoRef.current.play();
+        } catch (playError) {
+          console.warn('Video play warning (normal on iOS):', playError);
+        }
       }
       setIsLoading(false);
       
     } catch (error) {
       console.error('❌ Camera start failed:', error);
       
-      // Try fallback constraints
+      // iOS-specific fallback
       try {
-        console.log('🔄 Trying fallback camera constraints...');
+        console.log('🔄 Trying iOS-compatible fallback...');
         const fallbackConstraints = {
           video: {
             width: { ideal: 640, max: 1280 },
-            height: { ideal: 480, max: 720 }
+            height: { ideal: 480, max: 720 },
+            frameRate: { ideal: 15, max: 30 }
           },
           audio: false
         };
@@ -396,7 +416,11 @@ const MobileCameraCapture = ({ onCapture, onClose }) => {
         setStream(fallbackStream);
         if (videoRef.current) {
           videoRef.current.srcObject = fallbackStream;
-          videoRef.current.play();
+          try {
+            await videoRef.current.play();
+          } catch (playError) {
+            console.warn('Video play warning (normal on iOS):', playError);
+          }
         }
         setIsLoading(false);
         
