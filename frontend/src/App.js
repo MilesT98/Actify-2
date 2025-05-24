@@ -2644,6 +2644,8 @@ function App() {
             )}
             {currentView === 'leaderboard' && (
               <Leaderboard
+                submissions={submissions}
+                groups={groups}
                 user={user}
                 isMobile={isMobile}
               />
@@ -2706,6 +2708,8 @@ function App() {
             )}
             {currentView === 'leaderboard' && (
               <Leaderboard
+                submissions={submissions}
+                groups={groups}
                 user={user}
                 isMobile={isMobile}
               />
