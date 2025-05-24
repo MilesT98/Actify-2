@@ -1496,7 +1496,12 @@ const AchievementsView = ({ achievements, isMobile }) => {
 // Main App Component - UPDATED WITH BACKEND INTEGRATION
 function App() {
   const [isMobile, setIsMobile] = useState(isMobileDevice());
-  const [user, setUser] = useState(getStorageItem('user'));
+  const [user, setUser] = useState(() => {
+    // Initialize user from localStorage on app load
+    const savedUser = getStorageItem('user');
+    console.log('🔄 App initialized with saved user:', savedUser);
+    return savedUser;
+  });
   const [isLogin, setIsLogin] = useState(true);
   const [currentView, setCurrentView] = useState('feed');
   const [groups, setGroups] = useState([]);
@@ -1506,6 +1511,7 @@ function App() {
   const [showIntro, setShowIntro] = useState(false);
   const [toast, setToast] = useState(null);
   const [isLoading, setIsLoading] = useState(false);
+  const [isInitialized, setIsInitialized] = useState(false);
 
   // Handle window resize for responsive detection
   useEffect(() => {
@@ -1519,13 +1525,27 @@ function App() {
 
   // Save user to localStorage when state changes
   useEffect(() => {
-    if (user) setStorageItem('user', user);
+    console.log('💾 Saving user to localStorage:', user);
+    if (user) {
+      setStorageItem('user', user);
+    } else {
+      localStorage.removeItem('user');
+    }
   }, [user]);
 
-  // Load data when user logs in
+  // Load data when user logs in or app initializes
   useEffect(() => {
+    const initializeApp = async () => {
+      console.log('🚀 Initializing app with user:', user);
+      if (user) {
+        await loadUserData();
+      }
+      setIsInitialized(true);
+    };
+
+    initializeApp();
+
     if (user) {
-      loadUserData();
       // Set up periodic data refresh
       const interval = setInterval(loadUserData, 10000); // Refresh every 10 seconds
       return () => clearInterval(interval);
@@ -1534,30 +1554,40 @@ function App() {
 
   // Load user data from backend
   const loadUserData = async () => {
-    if (!user) return;
+    if (!user || !user.id) {
+      console.log('⚠️ No user or user ID, skipping data load');
+      return;
+    }
 
     try {
+      console.log('📡 Loading user data for:', user.id);
+      
       // Load groups
       const userGroups = await groupAPI.getAll(user.id, false);
       const publicGroups = await groupAPI.getAll(null, true);
       const allGroups = [...userGroups, ...publicGroups.filter(g => !userGroups.some(ug => ug.id === g.id))];
       setGroups(allGroups);
+      console.log('📁 Loaded groups:', allGroups.length);
 
       // Load notifications
       const userNotifications = await notificationAPI.getForUser(user.id);
       setNotifications(userNotifications);
+      console.log('🔔 Loaded notifications:', userNotifications.length);
 
       // Load submissions
       const allSubmissions = await submissionAPI.getAll();
       setSubmissions(allSubmissions);
+      console.log('📝 Loaded submissions:', allSubmissions.length);
 
     } catch (error) {
-      console.error('Failed to load user data:', error);
+      console.error('❌ Failed to load user data:', error);
+      // Don't show error toast for periodic refreshes
     }
   };
 
   // Toast helper function
   const showToast = (message, type = 'info') => {
+    console.log(`🍞 Toast: [${type}] ${message}`);
     setToast({ message, type });
   };
 
@@ -1565,12 +1595,16 @@ function App() {
   const handleLogin = async (userData) => {
     setIsLoading(true);
     try {
+      console.log('🔐 Logging in user:', userData);
+      
       // Create user in backend
       const createdUser = await userAPI.create(userData);
+      console.log('✅ User created/logged in:', createdUser);
+      
       setUser(createdUser);
       showToast(`Welcome back, ${createdUser.name}! 🎉`, 'success');
     } catch (error) {
-      console.error('Login failed:', error);
+      console.error('❌ Login failed:', error);
       showToast('❌ Login failed. Please try again.', 'error');
     } finally {
       setIsLoading(false);
@@ -1580,12 +1614,16 @@ function App() {
   const handleSignup = async (userData) => {
     setIsLoading(true);
     try {
+      console.log('📝 Signing up user:', userData);
+      
       // Create user in backend
       const createdUser = await userAPI.create(userData);
+      console.log('✅ User created:', createdUser);
+      
       setUser(createdUser);
       showToast(`Welcome to ACTIFY, ${createdUser.name}! 🚀`, 'success');
     } catch (error) {
-      console.error('Signup failed:', error);
+      console.error('❌ Signup failed:', error);
       showToast('❌ Signup failed. Please try again.', 'error');
     } finally {
       setIsLoading(false);
@@ -1593,6 +1631,7 @@ function App() {
   };
 
   const handleLogout = () => {
+    console.log('👋 Logging out user');
     setUser(null);
     localStorage.removeItem('user');
     setCurrentView('feed');
@@ -1604,7 +1643,10 @@ function App() {
   // Group handlers with backend integration
   const handleCreateGroup = async (groupData) => {
     try {
+      console.log('📁 Creating group:', groupData);
       const createdGroup = await groupAPI.create(groupData, user.id);
+      console.log('✅ Group created:', createdGroup);
+      
       setGroups(prev => [createdGroup, ...prev]);
       
       // Reload user data to get notifications
@@ -1612,14 +1654,16 @@ function App() {
       
       return createdGroup;
     } catch (error) {
-      console.error('Failed to create group:', error);
+      console.error('❌ Failed to create group:', error);
       throw error;
     }
   };
 
   const handleJoinGroup = async (groupId) => {
     try {
+      console.log('🚀 Joining group:', groupId);
       await groupAPI.join(groupId, user.id);
+      console.log('✅ Successfully joined group');
       
       // Show immediate confirmation
       showToast('🎉 Successfully joined group! Loading details...', 'confirmation');
@@ -1628,7 +1672,7 @@ function App() {
       setTimeout(loadUserData, 1000);
       
     } catch (error) {
-      console.error('Failed to join group:', error);
+      console.error('❌ Failed to join group:', error);
       throw error;
     }
   };
@@ -1636,11 +1680,12 @@ function App() {
   // Activity handlers (basic implementation)
   const handleSubmitActivity = async (activityData) => {
     try {
+      console.log('📸 Submitting activity:', activityData);
       const submission = await submissionAPI.create(activityData, user.id, user.name);
       setSubmissions(prev => [submission, ...prev]);
       showToast('📸 Activity submitted successfully!', 'success');
     } catch (error) {
-      console.error('Failed to submit activity:', error);
+      console.error('❌ Failed to submit activity:', error);
       showToast('❌ Failed to submit activity. Please try again.', 'error');
     }
   };
@@ -1651,7 +1696,7 @@ function App() {
       // Reload submissions to get updated votes
       setTimeout(loadUserData, 500);
     } catch (error) {
-      console.error('Failed to vote:', error);
+      console.error('❌ Failed to vote:', error);
     }
   };
 
@@ -1661,7 +1706,7 @@ function App() {
       // Reload submissions to get updated reactions
       setTimeout(loadUserData, 500);
     } catch (error) {
-      console.error('Failed to react:', error);
+      console.error('❌ Failed to react:', error);
     }
   };
 
@@ -1673,7 +1718,7 @@ function App() {
         n.id === notificationId ? { ...n, read: true } : n
       ));
     } catch (error) {
-      console.error('Failed to mark notification as read:', error);
+      console.error('❌ Failed to mark notification as read:', error);
     }
   };
 
@@ -1692,6 +1737,18 @@ function App() {
     ));
   };
 
+  // Show loading while app initializes
+  if (!isInitialized) {
+    return (
+      <div className="min-h-screen bg-slate-900 flex items-center justify-center">
+        <div className="text-center text-white">
+          <div className="loading-spinner mb-4"></div>
+          <p>Loading ACTIFY...</p>
+        </div>
+      </div>
+    );
+  }
+
   // Render intro screen
   if (showIntro) {
     return <IntroScreen onContinue={() => setShowIntro(false)} isMobile={isMobile} />;
@@ -1699,6 +1756,7 @@ function App() {
 
   // Render auth screens
   if (!user) {
+    console.log('🚪 Rendering auth screen - no user found');
     return (
       <div className="min-h-screen bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900 flex items-center justify-center p-4">
         <div className="text-center space-y-8">
@@ -1730,6 +1788,7 @@ function App() {
   }
 
   // Main app interface
+  console.log('🏠 Rendering main app for user:', user.name);
   return (
     <div className="min-h-screen bg-slate-900">
       {/* Toast notifications */}
