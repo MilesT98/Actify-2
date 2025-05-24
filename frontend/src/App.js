@@ -1756,39 +1756,313 @@ const NotificationView = ({ notifications, onMarkRead, isMobile }) => {
   );
 };
 
-// Simplified placeholder components for other views (keeping them basic for now)
+// Submission Card Component
+const SubmissionCard = ({ submission, currentUser, onVote, onReact, isMobile }) => {
+  const [selectedPhoto, setSelectedPhoto] = useState('back');
+  const userVote = submission.votes?.find(v => v.user_id === currentUser.id);
+  const userReaction = submission.reactions?.find(r => r.user_id === currentUser.id)?.emoji;
+
+  const handleVote = (rating) => {
+    onVote(submission.id, rating);
+  };
+
+  const handleReact = (emoji) => {
+    onReact(submission.id, emoji);
+  };
+
+  const handleDoubleClick = () => {
+    if (!userReaction) {
+      handleReact('❤️');
+    }
+  };
+
+  const averageRating = submission.votes?.length > 0
+    ? (submission.votes.reduce((sum, vote) => sum + vote.rating, 0) / submission.votes.length).toFixed(1)
+    : 0;
+
+  return (
+    <div className={`bg-slate-800 rounded-xl p-4 border border-slate-700 hover:border-slate-600 transition-all ${
+      isMobile ? 'mb-4' : 'p-6'
+    }`}>
+      <div className="flex justify-between items-start mb-4">
+        <div className="flex items-center space-x-3">
+          <div className={`${isMobile ? 'w-8 h-8' : 'w-10 h-10'} rounded-full ${getAvatarColor(submission.user_name)} flex items-center justify-center text-white text-sm font-bold`}>
+            {submission.user_name.charAt(0).toUpperCase()}
+          </div>
+          <div>
+            <h4 className={`text-white font-semibold ${isMobile ? 'text-sm' : ''}`}>{submission.user_name}</h4>
+            <p className={`text-slate-400 ${isMobile ? 'text-xs' : 'text-sm'}`}>{submission.activity}</p>
+            <div className={`flex items-center space-x-2 text-slate-500 ${isMobile ? 'text-xs' : 'text-xs'}`}>
+              <span>{formatTimeAgo(submission.timestamp)}</span>
+              {isCurrentWeek(submission.timestamp) && (
+                <span className="bg-green-800 text-green-200 px-2 py-1 rounded-full">This Week</span>
+              )}
+            </div>
+          </div>
+        </div>
+        <div className="flex items-center space-x-2">
+          {submission.type === 'global' && <span className="text-blue-400 text-sm">🌍</span>}
+          {submission.type === 'group' && <span className="text-green-400 text-sm">👥</span>}
+          <div className="text-yellow-400 flex items-center">
+            <span className="mr-1">⭐</span>
+            <span className={isMobile ? 'text-sm' : ''}>{averageRating}</span>
+            <span className={`text-slate-500 ml-1 ${isMobile ? 'text-xs' : ''}`}>({submission.votes?.length || 0})</span>
+          </div>
+        </div>
+      </div>
+
+      <div className="mb-4">
+        <div className="flex space-x-2 mb-2">
+          <button
+            onClick={() => setSelectedPhoto('back')}
+            className={`px-3 py-1 rounded-lg transition-colors ${isMobile ? 'text-xs' : 'text-sm'} ${
+              selectedPhoto === 'back' ? 'bg-blue-600 text-white' : 'bg-slate-700 text-slate-300 hover:text-white'
+            }`}
+          >
+            🌍 World
+          </button>
+          <button
+            onClick={() => setSelectedPhoto('front')}
+            className={`px-3 py-1 rounded-lg transition-colors ${isMobile ? 'text-xs' : 'text-sm'} ${
+              selectedPhoto === 'front' ? 'bg-blue-600 text-white' : 'bg-slate-700 text-slate-300 hover:text-white'
+            }`}
+          >
+            📱 You
+          </button>
+        </div>
+
+        <div className="relative aspect-video bg-slate-700 rounded-lg overflow-hidden" onDoubleClick={handleDoubleClick}>
+          <img
+            src={submission.photos[selectedPhoto]}
+            alt={`${selectedPhoto} view`}
+            className="w-full h-full object-cover cursor-pointer"
+          />
+          {userReaction && (
+            <div className={`absolute top-4 right-4 animate-bounce ${isMobile ? 'text-xl' : 'text-2xl'}`}>
+              {userReaction}
+            </div>
+          )}
+        </div>
+      </div>
+
+      <div className={`flex items-center ${isMobile ? 'justify-between' : 'justify-between'}`}>
+        <div className="flex items-center space-x-4">
+          <QuickReactionButton
+            onReact={handleReact}
+            reactions={submission.reactions}
+            userReaction={userReaction}
+            isMobile={isMobile}
+          />
+          <span className={`text-slate-500 ${isMobile ? 'text-xs' : 'text-xs'}`}>Double-tap to ❤️</span>
+        </div>
+
+        {submission.user_id !== currentUser.id && (
+          <div className="flex items-center space-x-1">
+            {!isMobile && <span className="text-slate-400 text-sm">Rate:</span>}
+            {[1, 2, 3, 4, 5].map(rating => (
+              <button
+                key={rating}
+                onClick={() => handleVote(rating)}
+                className={`hover:scale-110 transition-transform ${isMobile ? 'text-base' : 'text-lg'} ${
+                  userVote?.rating >= rating
+                    ? 'text-yellow-400'
+                    : 'text-slate-600 hover:text-yellow-300'
+                }`}
+              >
+                ⭐
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+};
+
+// Activity Feed Component - FULLY IMPLEMENTED
 const ActivityFeed = ({ user, submissions, groups, onSubmitActivity, onVote, onReact, isMobile }) => {
+  const [showCamera, setShowCamera] = useState(false);
+  const [selectedActivity, setSelectedActivity] = useState(null);
+  const [timeLeft, setTimeLeft] = useState(null);
+  const [filter, setFilter] = useState('all');
+
+  const today = new Date().toDateString();
   const todayIndex = new Date().getDay();
   const globalActivity = GLOBAL_ACTIVITIES[todayIndex];
 
+  useEffect(() => {
+    const updateTimeLeft = () => {
+      const now = new Date();
+      const endOfDay = new Date(now);
+      endOfDay.setHours(23, 59, 59, 999);
+      const timeRemaining = endOfDay.getTime() - now.getTime();
+
+      if (timeRemaining > 0) {
+        const hours = Math.floor(timeRemaining / (1000 * 60 * 60));
+        const minutes = Math.floor((timeRemaining % (1000 * 60 * 60)) / (1000 * 60));
+        setTimeLeft(`${hours}h ${minutes}m left to submit`);
+      } else {
+        setTimeLeft('Submission period ended');
+      }
+    };
+
+    updateTimeLeft();
+    const interval = setInterval(updateTimeLeft, 60000);
+    return () => clearInterval(interval);
+  }, []);
+
+  const handleSubmitActivity = (activityType, activity, groupId = null) => {
+    setSelectedActivity({ type: activityType, activity, groupId });
+    setShowCamera(true);
+  };
+
+  const handlePhotoCapture = (photos) => {
+    if (selectedActivity) {
+      onSubmitActivity({
+        type: selectedActivity.type,
+        activity: selectedActivity.activity,
+        group_id: selectedActivity.groupId,
+        photos,
+      });
+    }
+    setShowCamera(false);
+    setSelectedActivity(null);
+  };
+
+  const todaySubmissions = submissions.filter(s =>
+    s.user_id === user.id && new Date(s.timestamp).toDateString() === today
+  );
+
+  const hasSubmittedGlobal = todaySubmissions.some(s => s.type === 'global');
+  const submittedGroupIds = todaySubmissions.filter(s => s.type === 'group').map(s => s.group_id);
+
+  const filteredSubmissions = submissions.filter(submission => {
+    if (filter === 'global') return submission.type === 'global';
+    if (filter === 'groups') return submission.type === 'group';
+    return true;
+  }).sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+
+  const CameraComponent = isMobile ? MobileCameraCapture : DesktopCameraCapture;
+
   return (
     <div className={`space-y-6 ${isMobile ? 'pb-20' : ''}`}>
+      {showCamera && (
+        <CameraComponent
+          onCapture={handlePhotoCapture}
+          onClose={() => setShowCamera(false)}
+        />
+      )}
+
       <div className="bg-gradient-to-r from-blue-900 to-purple-900 border border-blue-700 rounded-xl p-4 text-center">
-        <h3 className={`font-semibold text-white mb-2 ${isMobile ? 'text-base' : 'text-lg'}`}>🌍 Today's Global Challenge</h3>
-        <p className={`text-blue-200 ${isMobile ? 'text-sm' : ''}`}>{globalActivity}</p>
-        <button className={`mt-3 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium transition-all ${
-          isMobile ? 'px-4 py-2 text-sm' : 'px-6 py-3'
-        }`}>
-          📸 Take Photo
-        </button>
+        <div className="flex items-center justify-center space-x-2">
+          <span className="text-2xl">⏰</span>
+          <p className={`text-blue-200 font-semibold ${isMobile ? 'text-sm' : ''}`}>{timeLeft}</p>
+        </div>
       </div>
 
-      {/* Group Challenges */}
+      <div className={`bg-slate-800 rounded-xl p-4 border border-slate-700 hover:border-blue-500 transition-colors ${isMobile ? '' : 'p-6'}`}>
+        <div className="flex justify-between items-start mb-4">
+          <div className="flex-1">
+            <div className="flex items-center space-x-2 mb-2">
+              <h3 className={`font-semibold text-white ${isMobile ? 'text-base' : 'text-lg'}`}>🌍 Global Challenge</h3>
+              <div className={`bg-blue-600 text-white px-2 py-1 rounded-full ${isMobile ? 'text-xs' : 'text-xs'}`}>TRENDING</div>
+            </div>
+            <p className={`text-slate-300 ${isMobile ? 'text-sm' : ''}`}>{globalActivity}</p>
+            <p className={`text-slate-500 mt-1 ${isMobile ? 'text-xs' : 'text-sm'}`}>Join thousands of ACTIFY users worldwide!</p>
+          </div>
+          {!hasSubmittedGlobal && (
+            <button
+              onClick={() => handleSubmitActivity('global', globalActivity)}
+              className={`bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium transition-all hover:scale-105 shadow-lg ${
+                isMobile ? 'px-4 py-2 text-sm' : 'px-6 py-3'
+              }`}
+            >
+              🎯 Submit
+            </button>
+          )}
+        </div>
+        {hasSubmittedGlobal && (
+          <div className="bg-green-900 border border-green-700 rounded-lg p-3 flex items-center">
+            <span className="text-green-400 mr-2 text-xl">✓</span>
+            <span className={`text-green-300 ${isMobile ? 'text-sm' : ''}`}>Submitted today! Check back tomorrow for a new challenge.</span>
+          </div>
+        )}
+      </div>
+
       {groups.filter(g => g.members && g.members.includes(user.id)).map(group => (
-        <div key={group.id} className="bg-slate-800 rounded-xl p-4 border border-slate-700">
-          <h4 className={`font-semibold text-white mb-2 ${isMobile ? 'text-base' : 'text-lg'}`}>👥 {group.name}</h4>
-          <p className={`text-slate-300 mb-3 ${isMobile ? 'text-sm' : ''}`}>{group.current_challenge}</p>
-          <button className={`bg-green-600 hover:bg-green-700 text-white rounded-lg font-medium transition-all ${
-            isMobile ? 'px-4 py-2 text-sm' : 'px-6 py-3'
-          }`}>
-            📸 Submit
-          </button>
+        <div key={group.id} className={`bg-slate-800 rounded-xl p-4 border border-slate-700 hover:border-green-500 transition-colors ${isMobile ? '' : 'p-6'}`}>
+          <div className="flex justify-between items-start mb-4">
+            <div className="flex-1">
+              <div className="flex items-center space-x-2 mb-2">
+                <h3 className={`font-semibold text-white ${isMobile ? 'text-base' : 'text-lg'}`}>👥 {group.name}</h3>
+                <div className={`bg-green-600 text-white px-2 py-1 rounded-full ${isMobile ? 'text-xs' : 'text-xs'}`}>{group.member_count} members</div>
+              </div>
+              <p className={`text-slate-300 ${isMobile ? 'text-sm' : ''}`}>{group.current_challenge}</p>
+              <p className={`text-slate-500 mt-1 ${isMobile ? 'text-xs' : 'text-sm'}`}>This week's challenge • Refreshes Monday</p>
+            </div>
+            {!submittedGroupIds.includes(group.id) && (
+              <button
+                onClick={() => handleSubmitActivity('group', group.current_challenge, group.id)}
+                className={`bg-green-600 hover:bg-green-700 text-white rounded-lg font-medium transition-all hover:scale-105 shadow-lg ${
+                  isMobile ? 'px-4 py-2 text-sm' : 'px-6 py-3'
+                }`}
+              >
+                📸 Submit
+              </button>
+            )}
+          </div>
+          {submittedGroupIds.includes(group.id) && (
+            <div className="bg-green-900 border border-green-700 rounded-lg p-3 flex items-center">
+              <span className="text-green-400 mr-2 text-xl">✓</span>
+              <span className={`text-green-300 ${isMobile ? 'text-sm' : ''}`}>Submitted to {group.name} this week!</span>
+            </div>
+          )}
         </div>
       ))}
 
-      <div className="text-center py-8 text-slate-400">
-        <div className="text-4xl mb-4">📸</div>
-        <p className={isMobile ? 'text-sm' : ''}>Community feed coming soon! Submit your first activity to get started.</p>
+      <div className={`${isMobile ? 'flex overflow-x-auto space-x-2 pb-2' : 'flex space-x-2'} bg-slate-800 p-2 rounded-lg border border-slate-700`}>
+        {[
+          { id: 'all', label: '🌟 All Posts', count: filteredSubmissions.length },
+          { id: 'global', label: '🌍 Global', count: submissions.filter(s => s.type === 'global').length },
+          { id: 'groups', label: '👥 Groups', count: submissions.filter(s => s.type === 'group').length }
+        ].map(filterOption => (
+          <button
+            key={filterOption.id}
+            onClick={() => setFilter(filterOption.id)}
+            className={`${isMobile ? 'flex-shrink-0' : ''} px-4 py-2 rounded-lg font-medium transition-colors ${
+              isMobile ? 'text-xs' : 'text-sm'
+            } ${
+              filter === filterOption.id ? 'bg-blue-600 text-white' : 'text-slate-400 hover:text-white'
+            }`}
+          >
+            {filterOption.label} ({filterOption.count})
+          </button>
+        ))}
+      </div>
+
+      <div className="space-y-4">
+        <h3 className={`font-semibold text-white flex items-center space-x-2 ${isMobile ? 'text-lg' : 'text-xl'}`}>
+          <span>📸</span>
+          <span>Community Feed</span>
+        </h3>
+
+        {filteredSubmissions.slice(0, 20).map(submission => (
+          <SubmissionCard
+            key={submission.id}
+            submission={submission}
+            currentUser={user}
+            onVote={onVote}
+            onReact={onReact}
+            isMobile={isMobile}
+          />
+        ))}
+
+        {filteredSubmissions.length === 0 && (
+          <div className="text-center py-12 text-slate-400">
+            <div className="text-4xl mb-4">📭</div>
+            <p className={isMobile ? 'text-sm' : ''}>No submissions yet. Be the first to share!</p>
+          </div>
+        )}
       </div>
     </div>
   );
