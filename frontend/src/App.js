@@ -204,15 +204,61 @@ const isCurrentWeek = (timestamp) => {
   return submissionWeek === currentWeek;
 };
 
-// Generate avatar color based on name
-const getAvatarColor = (name) => {
-  const colors = [
-    'bg-blue-600', 'bg-purple-600', 'bg-green-600', 'bg-yellow-600',
-    'bg-red-600', 'bg-indigo-600', 'bg-pink-600', 'bg-teal-600'
-  ];
-  const hash = name.split('').reduce((a, b) => a + b.charCodeAt(0), 0);
-  return colors[hash % colors.length];
+// Toast Notification Component
+const Toast = ({ message, type, onClose }) => {
+  useEffect(() => {
+    const timer = setTimeout(onClose, 6000); // Longer display time for confirmations
+    return () => clearTimeout(timer);
+  }, [onClose]);
+
+  return (
+    <div className={`fixed top-4 right-4 z-50 p-4 rounded-lg shadow-lg border transition-all duration-300 max-w-sm ${
+      type === 'success' ? 'bg-green-900 border-green-700 text-green-200' :
+      type === 'error' ? 'bg-red-900 border-red-700 text-red-200' :
+      type === 'info' ? 'bg-blue-900 border-blue-700 text-blue-200' :
+      type === 'confirmation' ? 'bg-purple-900 border-purple-700 text-purple-200' :
+      'bg-slate-800 border-slate-700 text-slate-200'
+    }`}>
+      <div className="flex items-center space-x-3">
+        <span className="text-xl">
+          {type === 'success' ? '✅' : 
+           type === 'error' ? '❌' : 
+           type === 'info' ? 'ℹ️' : 
+           type === 'confirmation' ? '🎉' : '📢'}
+        </span>
+        <p className="font-medium">{message}</p>
+        <button
+          onClick={onClose}
+          className="text-slate-400 hover:text-white transition-colors"
+        >
+          ✕
+        </button>
+      </div>
+    </div>
+  );
 };
+
+// Global activities
+const GLOBAL_ACTIVITIES = [
+  "Take a photo of yourself exercising 💪",
+  "Show your healthy meal of the day 🥗",
+  "Capture yourself reading a book 📚",
+  "Document your morning routine ☀️",
+  "Share your workspace setup 💻",
+  "Show yourself being creative 🎨",
+  "Capture a moment of relaxation 🧘"
+];
+
+const ACHIEVEMENTS = [
+  { id: 'first-post', name: 'First Steps', description: 'Share your first activity', icon: '🌟' },
+  { id: 'streak-3', name: 'Getting Consistent', description: '3-day streak', icon: '🔥' },
+  { id: 'streak-7', name: 'Week Warrior', description: '7-day streak', icon: '⚡' },
+  { id: 'popular-post', name: 'Crowd Favorite', description: 'Get 10+ votes', icon: '❤️' },
+  { id: 'group-creator', name: 'Community Builder', description: 'Create your first group', icon: '👥' },
+  { id: 'helpful-voter', name: 'Supportive Friend', description: 'Vote on 50+ posts', icon: '🤝' },
+  { id: 'weekly-winner', name: 'Weekly Champion', description: 'Top the weekly leaderboard', icon: '👑' },
+  { id: 'challenge-creator', name: 'Innovator', description: 'Suggest a winning group challenge', icon: '💡' }
+];
 
 // Mobile Camera Component - IMPROVED MOBILE COMPATIBILITY
 const MobileCameraCapture = ({ onCapture, onClose }) => {
