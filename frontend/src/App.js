@@ -1536,24 +1536,30 @@ function App() {
   // Load data when user logs in or app initializes
   useEffect(() => {
     const initializeApp = async () => {
-      console.log('🚀 Initializing app with user:', user);
-      if (user) {
+      console.log('🚀 Initializing app with user:', user?.id);
+      if (user && user.id) {
         await loadUserData();
       }
       setIsInitialized(true);
     };
 
-    initializeApp();
+    if (!isInitialized) {
+      initializeApp();
+    }
+  }, [user?.id, isInitialized]);
 
-    if (user) {
-      // Set up periodic data refresh
-      const interval = setInterval(loadUserData, 10000); // Refresh every 10 seconds
+  // Set up periodic refresh when user is logged in
+  useEffect(() => {
+    if (user && user.id && isInitialized) {
+      const interval = setInterval(() => {
+        loadUserData();
+      }, 15000); // Refresh every 15 seconds
       return () => clearInterval(interval);
     }
-  }, [user]);
+  }, [user?.id, isInitialized]);
 
   // Load user data from backend
-  const loadUserData = async () => {
+  const loadUserData = useCallback(async () => {
     if (!user || !user.id) {
       console.log('⚠️ No user or user ID, skipping data load');
       return;
@@ -1583,7 +1589,7 @@ function App() {
       console.error('❌ Failed to load user data:', error);
       // Don't show error toast for periodic refreshes
     }
-  };
+  }, [user?.id]);
 
   // Toast helper function
   const showToast = (message, type = 'info') => {
