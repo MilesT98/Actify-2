@@ -1746,16 +1746,114 @@ const Leaderboard = ({ submissions, groups, user, isMobile }) => {
 };
 
 const AchievementsView = ({ achievements, onMarkAchievementSeen, isMobile }) => {
-  // Simplified achievements view
+  const earnedAchievements = achievements.filter(a => a.earned);
+  const unlockedAchievements = achievements.filter(a => !a.earned);
+
   return (
     <div className={`space-y-6 ${isMobile ? 'pb-20' : ''}`}>
       <h2 className={`font-bold text-white flex items-center space-x-2 ${isMobile ? 'text-xl' : 'text-2xl'}`}>
         <span>⭐</span>
         <span>Achievements</span>
       </h2>
-      <div className="text-center py-12 text-slate-400">
-        <div className="text-4xl mb-4">🚧</div>
-        <p className={isMobile ? 'text-sm' : ''}>Achievements view - Mobile optimization in progress</p>
+
+      {/* Earned Achievements */}
+      <div>
+        <h3 className={`font-semibold text-white mb-4 flex items-center space-x-2 ${isMobile ? 'text-lg' : 'text-xl'}`}>
+          <span>🏆</span>
+          <span>Unlocked ({earnedAchievements.length})</span>
+        </h3>
+        <div className={`grid gap-4 ${isMobile ? '' : 'md:grid-cols-2'}`}>
+          {earnedAchievements.map(achievement => (
+            <div
+              key={achievement.id}
+              className={`bg-gradient-to-r from-yellow-900 to-yellow-800 border-2 border-yellow-600 rounded-xl p-4 ${
+                !achievement.seen ? 'ring-2 ring-yellow-400 animate-pulse' : ''
+              }`}
+              onClick={() => !achievement.seen && onMarkAchievementSeen(achievement.id)}
+            >
+              <div className={`flex items-center space-x-3 ${isMobile ? '' : ''}`}>
+                <div className={isMobile ? 'text-2xl' : 'text-3xl'}>{achievement.icon}</div>
+                <div className="flex-1">
+                  <h4 className={`text-white font-semibold ${isMobile ? 'text-sm' : ''}`}>{achievement.name}</h4>
+                  <p className={`text-yellow-200 ${isMobile ? 'text-xs' : 'text-sm'}`}>{achievement.description}</p>
+                  {achievement.earnedAt && (
+                    <p className={`text-yellow-300 mt-1 ${isMobile ? 'text-xs' : 'text-xs'}`}>
+                      Unlocked {formatTimeAgo(achievement.earnedAt)}
+                    </p>
+                  )}
+                </div>
+                {!achievement.seen && (
+                  <div className="bg-red-500 text-white text-xs rounded-full w-2 h-2"></div>
+                )}
+              </div>
+            </div>
+          ))}
+          {earnedAchievements.length === 0 && (
+            <div className="text-center py-8 text-slate-400 col-span-full">
+              <div className="text-4xl mb-4">🎯</div>
+              <p className={isMobile ? 'text-sm' : ''}>Complete activities to unlock achievements!</p>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Locked Achievements */}
+      <div>
+        <h3 className={`font-semibold text-white mb-4 flex items-center space-x-2 ${isMobile ? 'text-lg' : 'text-xl'}`}>
+          <span>🔒</span>
+          <span>Locked ({unlockedAchievements.length})</span>
+        </h3>
+        <div className={`grid gap-4 ${isMobile ? '' : 'md:grid-cols-2'}`}>
+          {unlockedAchievements.map(achievement => (
+            <div
+              key={achievement.id}
+              className="bg-slate-800 border border-slate-600 rounded-xl p-4 opacity-60"
+            >
+              <div className={`flex items-center space-x-3 ${isMobile ? '' : ''}`}>
+                <div className={`grayscale ${isMobile ? 'text-2xl' : 'text-3xl'}`}>{achievement.icon}</div>
+                <div className="flex-1">
+                  <h4 className={`text-slate-300 font-semibold ${isMobile ? 'text-sm' : ''}`}>{achievement.name}</h4>
+                  <p className={`text-slate-500 ${isMobile ? 'text-xs' : 'text-sm'}`}>{achievement.description}</p>
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* Progress Summary */}
+      <div className="bg-slate-800 border border-slate-700 rounded-xl p-4">
+        <h3 className={`font-semibold text-white mb-4 flex items-center space-x-2 ${isMobile ? 'text-base' : 'text-lg'}`}>
+          <span>📈</span>
+          <span>Progress Summary</span>
+        </h3>
+        <div className="flex justify-between items-center">
+          <div>
+            <p className={`text-white font-semibold ${isMobile ? 'text-lg' : 'text-xl'}`}>
+              {earnedAchievements.length} / {achievements.length} Achievements
+            </p>
+            <p className={`text-slate-400 ${isMobile ? 'text-sm' : ''}`}>
+              {Math.round((earnedAchievements.length / achievements.length) * 100)}% Complete
+            </p>
+          </div>
+          <div className="text-right">
+            <div className={`w-16 h-16 rounded-full border-4 border-blue-600 flex items-center justify-center ${isMobile ? 'w-12 h-12' : ''}`}>
+              <span className={`text-white font-bold ${isMobile ? 'text-sm' : ''}`}>
+                {Math.round((earnedAchievements.length / achievements.length) * 100)}%
+              </span>
+            </div>
+          </div>
+        </div>
+        
+        {/* Progress Bar */}
+        <div className="mt-4">
+          <div className="w-full bg-slate-700 rounded-full h-2">
+            <div 
+              className="bg-blue-600 h-2 rounded-full transition-all duration-500" 
+              style={{ width: `${(earnedAchievements.length / achievements.length) * 100}%` }}
+            ></div>
+          </div>
+        </div>
       </div>
     </div>
   );
