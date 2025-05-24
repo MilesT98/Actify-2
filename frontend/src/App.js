@@ -79,6 +79,36 @@ const getAvatarColor = (name) => {
   return colors[hash % colors.length];
 };
 
+// Toast Notification Component
+const Toast = ({ message, type, onClose }) => {
+  useEffect(() => {
+    const timer = setTimeout(onClose, 4000);
+    return () => clearTimeout(timer);
+  }, [onClose]);
+
+  return (
+    <div className={`fixed top-4 right-4 z-50 p-4 rounded-lg shadow-lg border transition-all duration-300 ${
+      type === 'success' ? 'bg-green-900 border-green-700 text-green-200' :
+      type === 'error' ? 'bg-red-900 border-red-700 text-red-200' :
+      type === 'info' ? 'bg-blue-900 border-blue-700 text-blue-200' :
+      'bg-slate-800 border-slate-700 text-slate-200'
+    }`}>
+      <div className="flex items-center space-x-3">
+        <span className="text-xl">
+          {type === 'success' ? '✅' : type === 'error' ? '❌' : type === 'info' ? 'ℹ️' : '📢'}
+        </span>
+        <p className="font-medium">{message}</p>
+        <button
+          onClick={onClose}
+          className="text-slate-400 hover:text-white transition-colors"
+        >
+          ✕
+        </button>
+      </div>
+    </div>
+  );
+};
+
 // Initial data
 const GLOBAL_ACTIVITIES = [
   "Take a photo of yourself exercising 💪",
