@@ -36,7 +36,7 @@ class ACTIFYAPITester:
         else:
             print(f"❌ {name} - FAILED: {details}")
         
-    def make_request(self, method, endpoint, data=None, files=None, params=None):
+    def make_request(self, method, endpoint, data=None, files=None, params=None, form_data=False):
         """Make HTTP request with error handling"""
         url = f"{self.api_url}/{endpoint}"
         headers = {}
@@ -45,7 +45,7 @@ class ACTIFYAPITester:
             if method == 'GET':
                 response = requests.get(url, headers=headers, params=params, timeout=10)
             elif method == 'POST':
-                if files:
+                if files or form_data:
                     response = requests.post(url, data=data, files=files, timeout=10)
                 else:
                     headers['Content-Type'] = 'application/json'
