@@ -212,7 +212,7 @@ class ACTIFYAPITester:
         
         # Join the group
         join_data = {'user_id': second_user['id']}
-        response = self.make_request('POST', f"groups/{self.test_group['id']}/join", data=join_data)
+        response = self.make_request('POST', f"groups/{self.test_group['id']}/join", data=join_data, form_data=True)
         
         if response and response.status_code == 200:
             data = response.json()
