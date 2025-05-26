@@ -200,14 +200,21 @@ async def get_user(user_id: str):
 
 # Group Management Routes
 @api_router.post("/groups", response_model=GroupResponse)
-async def create_group(group_data: GroupCreate, user_id: str = Form(...)):
+async def create_group(
+    name: str = Form(...),
+    description: str = Form(...),
+    category: str = Form(...),
+    is_public: str = Form(...),
+    user_id: str = Form(...)
+):
     group_id = str(uuid.uuid4())
+    is_public_bool = is_public.lower() == 'true'
     group_doc = {
         "id": group_id,
-        "name": group_data.name,
-        "description": group_data.description,
-        "category": group_data.category,
-        "is_public": group_data.is_public,
+        "name": name,
+        "description": description,
+        "category": category,
+        "is_public": is_public_bool,
         "created_by": user_id,
         "created_at": datetime.utcnow(),
         "members": [user_id],
