@@ -6,6 +6,10 @@ import './App.css';
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 const API = `${BACKEND_URL}/api`;
 
+// Debug logging
+console.log('BACKEND_URL:', BACKEND_URL);
+console.log('API:', API);
+
 // Utility Functions
 const getAvatarColor = (username) => {
   const colors = ["#FF6B6B", "#4ECDC4", "#45B7D1", "#96CEB4", "#FCEA2B", "#FF9F43", "#6C5CE7", "#FD79A8"];
