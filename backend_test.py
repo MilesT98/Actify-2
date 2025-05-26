@@ -148,7 +148,7 @@ class ACTIFYAPITester:
             'user_id': self.test_user['id']
         }
         
-        response = self.make_request('POST', 'groups', data=group_data)
+        response = self.make_request('POST', 'groups', data=group_data, form_data=True)
         
         if response and response.status_code == 200:
             data = response.json()
