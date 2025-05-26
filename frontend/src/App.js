@@ -47,27 +47,37 @@ const AuthScreen = ({ onLogin }) => {
     setLoading(true);
     setError('');
 
+    console.log('handleSubmit triggered');
+    console.log('API URL:', API);
+    console.log('Form data:', formData);
+
     try {
       if (isLogin) {
+        console.log('Attempting login...');
         const response = await axios.post(`${API}/login`, {
           username: formData.username,
           password: formData.password
         });
+        console.log('Login response:', response.data);
         localStorage.setItem('actify_session', response.data.session_id);
         localStorage.setItem('actify_user', JSON.stringify(response.data.user));
         onLogin(response.data.user);
       } else {
+        console.log('Attempting signup...');
         const response = await axios.post(`${API}/users`, formData);
+        console.log('Signup response:', response.data);
         // Auto-login after signup
         const loginResponse = await axios.post(`${API}/login`, {
           username: formData.username,
           password: formData.password
         });
+        console.log('Auto-login response:', loginResponse.data);
         localStorage.setItem('actify_session', loginResponse.data.session_id);
         localStorage.setItem('actify_user', JSON.stringify(loginResponse.data.user));
         onLogin(loginResponse.data.user);
       }
     } catch (error) {
+      console.error('Authentication error:', error);
       setError(error.response?.data?.detail || 'An error occurred');
     }
     setLoading(false);
