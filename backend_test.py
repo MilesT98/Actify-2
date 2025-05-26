@@ -139,7 +139,7 @@ class ACTIFYAPITester:
             self.log_test("Group Creation", False, "No test user available")
             return
             
-        # Use form data as expected by the endpoint
+        # Use form data exactly like the frontend does
         group_data = {
             'name': f'Test Group {datetime.now().strftime("%H%M%S")}',
             'description': 'A test fitness group',
@@ -158,7 +158,14 @@ class ACTIFYAPITester:
                 self.test_group = data
             self.log_test("Group Creation", success, f"Group ID: {data.get('id', 'N/A')}")
         else:
-            self.log_test("Group Creation", False, f"Status: {response.status_code if response else 'No response'}")
+            error_msg = f"Status: {response.status_code if response else 'No response'}"
+            if response:
+                try:
+                    error_detail = response.json()
+                    error_msg += f", Detail: {error_detail}"
+                except:
+                    error_msg += f", Text: {response.text}"
+            self.log_test("Group Creation", False, error_msg)
 
     def test_get_groups(self):
         """Test get groups endpoint"""
